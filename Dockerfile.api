@@ -1,0 +1,11 @@
+FROM denoland/deno:2.9.6
+WORKDIR /app
+COPY deno.json deno.lock ./
+COPY packages ./packages
+COPY apps/api ./apps/api
+RUN deno cache apps/api/src/main.ts packages/models/migrate.ts
+USER deno
+ENV NODE_ENV=production
+ENV API_PORT=8000
+EXPOSE 8000
+CMD ["task", "start:api"]
