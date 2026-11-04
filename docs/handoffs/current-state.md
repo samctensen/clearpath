@@ -29,3 +29,11 @@ Final combined verification: 160 tests passed, frontend/backend type checks pass
 The last deployment verified by this chat was frontend source `20569dd` (`dpl_chtUePPf7gR5299nxDBKgBqeXAfx`) and backend `q8z8chqyqctg`. Newer main changes are not automatically deployed because the Vercel project uses source uploads. Do not confuse Git main synchronization with hosted deployment. Production mutation smoke was denied by automatic review; use isolated local fixtures for writes and read-only production checks.
 
 Deletion removes active access but retains audit records. Demo roles are a simulation, not account authentication. Preserve revision checks, approval gates, workspace isolation and truthful UI counts. The take-home remains focused on product intuition and accurate human review, not extra infrastructure or invented analytics.
+
+## Role workspace planning — 2026-11-04
+
+Sam requested exploration and a plan, then delegated the product choice. The reviewed recommendation is in [role workspace design](../superpowers/specs/2026-11-04-role-workspaces-design.md) and [implementation plan](../superpowers/plans/2026-11-04-role-workspaces.md). This is planning only: no role redesign has been implemented or deployed by this work.
+
+Preserve the reviewer map; give submitters Needs attention, an actual revision journey and a feedback-first case page. Keep workspace-wide demo semantics; no earnings, activation, ownership/auth migration or invented historical performance. Two independent Claude reviews and a fresh GPT builder check informed the plan. The plan defines three parallel lanes with an integration owner and explicit file boundaries.
+
+The planning inspection used main `fd15157`, which includes the concurrent change to 50 seeded cases (superseding the earlier 18-case seed note above). Existing workspaces may differ. Do not assume sample history has multiple revisions; the journey must be useful at revision 1.
