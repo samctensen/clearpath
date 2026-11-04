@@ -123,7 +123,7 @@
 .offerSnapshot :global(.offer-terms dt), .offerSnapshot :global(.offer-terms dd) { font-size: 12px; }
 
 .evidenceRail { min-width: 0; }
-.checks { padding: 26px 24px 22px; }
+.checks { --checks-inset: 24px; padding: 26px var(--checks-inset) 22px; }
 .checksHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 10px; }
 .checksHeading .sectionHeading h2 { font-size: 15px; }
 .concernCount { color: #a4a4a4; font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -131,12 +131,19 @@
 .scopeDetails { margin-top: 7px; color: #999; font-size: 12px; }
 .scopeDetails summary { width: fit-content; color: #b9b9b9; cursor: pointer; }
 .scopeDetails p { margin-top: 10px; line-height: 1.75; }
-.checkTarget { min-width: 0; scroll-margin-top: 26px; }
+/* The wash reads as a band across the rail, so the target stretches into the
+   section's horizontal padding and gives it back as its own. The box is that
+   width whether or not it is flashing, so nothing shifts when it fires. */
+.checkTarget {
+  min-width: 0;
+  margin-inline: calc(var(--checks-inset, 24px) * -1);
+  padding-inline: var(--checks-inset, 24px);
+  scroll-margin-top: 26px;
+}
 /* Focus here is programmatic (tabIndex -1), so a persistent ring just hangs
-   around the card. The jump announces itself with a brief wash instead. */
+   around the card. The jump announces itself with the wash instead. */
 .checkTarget:focus { outline: none; }
-.checkFlash { border-radius: 6px; animation: checkFlash 1100ms ease-out; }
-/* Stays inside the card: a spread shadow would wash over its neighbours. */
+.checkFlash { animation: checkFlash 1100ms ease-out; }
 @keyframes checkFlash {
   0%, 55% { background: #ffffff14; }
   100% { background: transparent; }
