@@ -4,8 +4,7 @@
 .sectionHeading > span { color: var(--dash-muted); font-size: 11px; }
 .guideLayout { display: grid; grid-template-columns: 270px minmax(0, 1fr); align-items: start; gap: 30px; }
 .guideIndex { min-width: 0; position: sticky; top: 24px; }
-.guideIndex > .sectionHeading { padding-inline: 11px; }
-.guideIndex nav { display: grid; gap: 6px; }
+.guideIndex nav { display: grid; gap: 6px; scroll-margin-top: 24px; }
  .ruleGroup + .ruleGroup { margin-top: 22px; }
 .ruleGroup h3 { margin: 0 11px 7px; color: #a3a3a3; font-size: 12px; font-weight: 500; }
 .ruleLink { display: block; padding: 11px; border: 1px solid transparent; border-radius: 6px; color: #c7c7c7; font-size: 13px; line-height: 1.65; }
@@ -129,7 +128,6 @@
   .guideLayout { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .guideIndex { position: static; }
   .guideIndex nav { display: block; }
-  .guideIndex > .sectionHeading { padding: 0; }
   .ruleGroup h3 { margin-left: 0; }
   .ruleLink { padding: 10px 11px; min-height: 44px; }
   .indexNote { margin: 16px 0 0; padding-top: 14px; }

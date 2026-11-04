@@ -19,7 +19,7 @@ export function PolicyGuide() {
   const [query, setQuery] = useState("");
   const [product, setProduct] = useState("all");
   const [selectedId, setSelectedId] = useState("");
-  const indexHeading = useRef<HTMLHeadingElement>(null);
+  const indexNavigation = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const readHash = () => {
@@ -74,14 +74,15 @@ export function PolicyGuide() {
     {data && rules.length === 0 && <div className={styles.empty}><DashboardIcon name="magnifying-glass" size={26} /><h2>No checks match your search</h2><p>Try another term or show all products.</p><button className="button secondary" onClick={() => { setQuery(""); setProduct("all"); }}>Clear filters</button></div>}
     {data && selected && <div className={styles.guideLayout}>
       <aside className={styles.guideIndex}>
-        <div className={styles.sectionHeading}><h2 id="policy-list-title" ref={indexHeading} tabIndex={-1}>Review checks</h2><span aria-live="polite">{rules.length}</span></div>
-        <nav aria-label="Review checks">{Object.entries(sources).map(([type, label]) => {
+        <h2 id="policy-list-title" className="sr-only">Review checks</h2>
+        <span className="sr-only" aria-live="polite">{rules.length} review checks</span>
+        <nav ref={indexNavigation} tabIndex={-1} aria-labelledby="policy-list-title">{Object.entries(sources).map(([type, label]) => {
           const group = rules.filter((rule) => rule.reference.type === type);
           return group.length > 0 && <div className={styles.ruleGroup} key={type}><h3>{label}</h3>{group.map((rule) => <a key={rule.id} href={`#${rule.id}`} className={styles.ruleLink} aria-current={selected.id === rule.id ? "true" : undefined} onClick={(event) => selectRule(event, rule.id)}>{rule.title}</a>)}</div>;
         })}</nav>
         <div className={styles.indexNote}><span>Policy {data.policyVersion}</span></div>
       </aside>
-      <PolicyDetail rule={selected} onBack={() => { indexHeading.current?.focus({ preventScroll: true }); indexHeading.current?.scrollIntoView({ block: "start" }); }} />
+      <PolicyDetail rule={selected} onBack={() => { indexNavigation.current?.focus({ preventScroll: true }); indexNavigation.current?.scrollIntoView({ block: "start" }); }} />
     </div>}
     <p className={styles.footerNote}>This guide covers the demo’s six text checks. A human makes the copy decision; layout and publication review remain separate.</p>
   </div>;
