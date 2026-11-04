@@ -1,3 +1,4 @@
+import { loadSubmissionRows } from "./submission-guidance.ts";
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import {
@@ -572,7 +573,7 @@ export class Store {
     const back = query.before !== undefined;
     const token = query.before ?? query.after;
     const cursor = token === undefined ? null : decodeQueueCursor(token);
-    const params: unknown[] = [workspace, query.q, query.product, query.status, query.limit + 1];
+    const params: unknown[] = [workspace, query.q, query.product, query.status, query.limit + 1, query.view];
 
     // Rows sort by key (NULLS LAST), then creation and ID, so every page boundary is unique.
     let pageWhere = "TRUE";
@@ -625,7 +626,9 @@ export class Store {
           lower(title) COLLATE "C" AS sort_title
         FROM matching
       ), queue AS (
-        SELECT * FROM cohort WHERE $4 = 'all' OR status = $4
+        SELECT * FROM cohort WHERE ($4 = 'all' OR status = $4)
+          AND ($6 = 'all' OR ($6 = 'needs_attention' AND status IN ('changes_requested', 'needs_information'))
+            OR ($6 = 'awaiting_review' AND status = 'ready_for_review') OR ($6 = 'approved' AND status = 'approved'))
       ), page AS (
         SELECT id, ${sortKey}::text AS sort_key, created_at::text AS cursor_created,
           row_number() OVER (ORDER BY ${pageOrder}) AS position
@@ -654,11 +657,11 @@ export class Store {
     const hasExtra = fetched.length > query.limit;
     if (hasExtra) fetched = fetched.slice(0, query.limit);
     if (back) fetched = fetched.toReversed();
-    const rows: CaseSummary[] = fetched.map((row) => ({
+    let rows = fetched.map((row) => ({
       id: row.id, title: row.title, productId: row.product_id, publisher: row.publisher,
       format: row.format, launchDate: row.launch_date, status: row.status, revision: row.revision,
       findings: Number(row.findings), unknowns: Number(row.unknowns),
-      createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+      createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), guidance: null as import("@clearpath/contracts").SubmissionGuidance | null,
     }));
     const total = Number(result.queue_total);
     const passed = Number(result.passed_total);
@@ -676,8 +679,22 @@ export class Store {
       startCursor: mark(fetched[0]),
       endCursor: mark(fetched[fetched.length - 1]),
     };
+    const attentionIds: string[] = query.role === "submitter" && result.cohort !== null
+      ? result.cohort.filter((row: Row) => row.status === "changes_requested" || row.status === "needs_information")
+        .slice(0, 3).map((row: Row) => row.id)
+      : [];
+    let submitterAttention: import("@clearpath/contracts").DashboardRow[] | null = null;
+    if (query.role === "submitter") {
+      const guidance = await loadSubmissionRows(this.db.query.bind(this.db), workspace,
+        [...new Set([...rows.map((row) => row.id), ...attentionIds])]);
+      rows = rows.map((row) => guidance.get(row.id) ?? row);
+      if (result.cohort !== null) submitterAttention = attentionIds.flatMap((id) => {
+        const row = guidance.get(id);
+        return row ? [row] : [];
+      });
+    }
     if (result.cohort === null) {
-      return { rows, page, cohort: null, workspaceTotal: Number(result.workspace_total), overview: null };
+      return { rows, page, cohort: null, workspaceTotal: Number(result.workspace_total), overview: null, submitterAttention };
     }
 
     const cohort: QueueCohortItem[] = result.cohort.map((row: Row) => ({
@@ -699,6 +716,7 @@ export class Store {
     const actionableStatus = query.role === "submitter" ? "changes_requested" : "ready_for_review";
     return {
       rows,
+      submitterAttention,
       page,
       cohort,
       workspaceTotal: Number(result.workspace_total),

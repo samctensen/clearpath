@@ -1,5 +1,7 @@
 import { z } from "zod";
 export * from "./ai-review.ts";
+export * from "./submission-guidance.ts";
+import type { DashboardRow } from "./submission-guidance.ts";
 
 export const productIds = ["card", "personal_loan", "mortgage", "unknown"] as const;
 export type ProductId = typeof productIds[number];
@@ -121,6 +123,7 @@ export const dashboardQuerySchema = z.object({
   q: z.string().trim().max(200).default(""),
   product: z.enum(["all", ...productIds]).default("all"),
   status: z.enum(["all", "needs_information", "ready_for_review", "changes_requested", "approved"]).default("all"),
+  view: z.enum(["all", "needs_attention", "awaiting_review", "approved"]).default("all"),
   sort: z.enum(["launchDate", "title", "updatedAt"]).default("launchDate"),
   direction: z.enum(["asc", "desc"]).default("asc"),
   role: z.enum(["reviewer", "submitter"]).default("reviewer"),
@@ -135,6 +138,9 @@ export const dashboardQuerySchema = z.object({
   message: "Use either after or before, not both",
   path: ["after"],
 }).superRefine((value, context) => {
+  if (value.view !== "all" && (value.role !== "submitter" || value.status !== "all")) {
+    context.addIssue({ code: "custom", message: "Submitter views require submitter role and all statuses", path: ["view"] });
+  }
   if (value.sort !== "updatedAt") return;
   for (const direction of ["after", "before"] as const) {
     const encoded = value[direction];
@@ -169,7 +175,8 @@ export interface DashboardOverview {
   overdueCount: number;
 }
 export interface DashboardResponse {
-  rows: CaseSummary[];
+  rows: DashboardRow[];
+  submitterAttention: DashboardRow[] | null;
   page: QueuePage;
   /** Search/product cohort before the queue-only status filter; null under `scope=page`. */
   cohort: QueueCohortItem[] | null;
