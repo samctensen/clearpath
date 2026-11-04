@@ -2,6 +2,9 @@ import { loadSubmissionRows } from "./submission-guidance.ts";
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import {
+  buildChangeRequestFeedback,
+  formatChangeRequestFeedback,
+  type ChangeRequestFeedback,
   type AiReview,
   type AiReviewContent,
   type Analysis,
@@ -45,7 +48,7 @@ type DB = {
   transaction<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 };
-const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql", "004_queue_paging.sql"];
+const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql", "004_queue_paging.sql", "005_change_request_feedback.sql"];
 class AiReviewBudgetExceeded extends Error {}
 const id = () => crypto.randomUUID();
 const iso = (date: unknown) => new Date(date as string).toISOString();
@@ -209,11 +212,11 @@ export class Store {
         if (decision) {
           updatedAt = nextTime();
           const note = decision.note.trim();
-          const confirmed = decision.dispositions.filter((d) => d.action === "confirmed");
-          const feedback = [
-            note,
-            ...confirmed.map((d) => `${d.ruleId}: ${d.reason.trim() || "Confirmed concern"}`),
-          ].filter(Boolean).join("; ");
+          const changeRequest = decision.decision === "request_changes"
+            ? buildChangeRequestFeedback({ note, checks: plan.analysis.checks,
+              dispositions: decision.dispositions, manualFindings: [] })
+            : undefined;
+          const feedback = changeRequest ? formatChangeRequestFeedback(changeRequest) : note;
           decisions.push({
             id: id(),
             case_id: caseId,
@@ -228,6 +231,7 @@ export class Store {
             type: status,
             actor: "reviewer",
             message: feedback || "Copy approved",
+            change_request: changeRequest ?? null,
             revision: 1,
             created_at: updatedAt,
           });
@@ -264,7 +268,7 @@ export class Store {
           );
         }
         await db.query(
-          `INSERT INTO events(id,case_id,type,actor,message,revision,created_at) SELECT item->>'id',item->>'case_id',item->>'type',item->>'actor',item->>'message',(item->>'revision')::integer,(item->>'created_at')::timestamptz FROM jsonb_array_elements($1::text::jsonb) WITH ORDINALITY AS x(item,ordinal) ORDER BY ordinal`,
+          `INSERT INTO events(id,case_id,type,actor,message,revision,created_at,change_request) SELECT item->>'id',item->>'case_id',item->>'type',item->>'actor',item->>'message',(item->>'revision')::integer,(item->>'created_at')::timestamptz,item->'change_request' FROM jsonb_array_elements($1::text::jsonb) WITH ORDINALITY AS x(item,ordinal) ORDER BY ordinal`,
           [JSON.stringify(events)],
         );
       });
@@ -323,10 +327,11 @@ export class Store {
     actor: string,
     message: string,
     revision: number,
+    changeRequest?: ChangeRequestFeedback,
   ) {
     await db.query(
-      "INSERT INTO events(id,case_id,type,actor,message,revision) VALUES ($1,$2,$3,$4,$5,$6)",
-      [id(), caseId, type, actor, message, revision],
+      "INSERT INTO events(id,case_id,type,actor,message,revision,change_request) VALUES ($1,$2,$3,$4,$5,$6,$7::text::jsonb)",
+      [id(), caseId, type, actor, message, revision, changeRequest ? JSON.stringify(changeRequest) : null],
     );
   }
   private async detail(db: DB, workspace: string, caseId: string): Promise<Result<CaseDetail>> {
@@ -396,6 +401,7 @@ export class Store {
         type: e.type,
         actor: e.actor,
         message: e.message,
+        ...(e.change_request ? { changeRequest: e.change_request } : {}),
         revision: e.revision,
         createdAt: iso(e.created_at),
       })),
@@ -949,12 +955,12 @@ export class Store {
         [id(), caseId, expected, decision, note.trim()],
       );
       await db.query("UPDATE cases SET status=$1 WHERE id=$2", [status, caseId]);
-      const feedback = [
-        note.trim(),
-        ...confirmed.map((x) => `${x.ruleId}: ${x.reason || "Confirmed concern"}`),
-        ...open.map((x) => `${x.title}: ${x.reason}`),
-      ].filter(Boolean).join("; ");
-      await this.event(db, caseId, status, "reviewer", feedback || "Copy approved", expected);
+      const changeRequest = decision === "request_changes"
+        ? buildChangeRequestFeedback({ note, checks, dispositions: d.dispositions,
+          manualFindings: d.manualFindings })
+        : undefined;
+      const feedback = changeRequest ? formatChangeRequestFeedback(changeRequest) : note.trim();
+      await this.event(db, caseId, status, "reviewer", feedback || "Copy approved", expected, changeRequest);
       return success(undefined);
     });
   }

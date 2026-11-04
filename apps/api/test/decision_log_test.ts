@@ -25,7 +25,9 @@ Deno.test("decision log preserves revision context and feedback and includes his
     assert.equal(records.length, 2);
     assert.equal(records[0].decision, "request_changes");
     assert.equal(records[0].title, "Renamed card");
-    assert.match(records[0].feedback, /Correct the promotion.*Use the 12-month offer/);
+    assert.match(records[0].feedback, /Correct the promotion.*Use the 12-month offer/s);
+    assert.ok(!records[0].feedback.includes("offer-match"));
+    assert.match(records[0].feedback, /“18 months”/);
     const approval = records[1];
     assert.equal(approval.revision, 1);
     assert.equal(approval.currentRevision, 2);

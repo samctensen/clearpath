@@ -1,4 +1,4 @@
-import type { DashboardRow, SubmissionGuidance } from "@clearpath/contracts";
+import { summarizeChangeRequestFeedback, type DashboardRow, type SubmissionGuidance } from "@clearpath/contracts";
 
 type Row = Record<string, any>;
 type Query = (sql: string, params?: unknown[]) => Promise<Row[]>;
@@ -15,9 +15,9 @@ export async function loadSubmissionRows(query: Query, workspace: string, ids: s
       (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') x WHERE x->>'status' = 'unknown') AS unknowns,
       (SELECT x->>'explanation' FROM jsonb_array_elements(r.analysis->'checks') x
         WHERE x->>'status' = 'unknown' AND COALESCE(x->>'explanation', '') <> '' LIMIT 1) AS explanation,
-      e.message AS event_message, e.created_at AS event_created_at
+      e.message AS event_message, e.change_request, e.created_at AS event_created_at
     FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
-    LEFT JOIN LATERAL (SELECT message, created_at FROM events
+    LEFT JOIN LATERAL (SELECT message, change_request, created_at FROM events
       WHERE case_id = c.id AND revision = c.revision AND type = c.status
         AND type IN ('changes_requested', 'approved')
       ORDER BY sequence DESC LIMIT 1) e ON true
@@ -31,7 +31,7 @@ export async function loadSubmissionRows(query: Query, workspace: string, ids: s
     });
     if (row.status === "ready_for_review") guidance = make("awaiting_review", "Awaiting human review", row.revision_created_at);
     else if (row.status === "needs_information" && row.explanation) guidance = make("missing_information", row.explanation, row.revision_created_at);
-    else if (row.status === "changes_requested" && row.event_message) guidance = make("reviewer_feedback", row.event_message, row.event_created_at);
+    else if (row.status === "changes_requested" && row.event_message) guidance = make("reviewer_feedback", row.change_request ? summarizeChangeRequestFeedback(row.change_request) : row.event_message, row.event_created_at);
     else if (row.status === "approved" && row.event_message) guidance = make("approved_copy", row.event_message, row.event_created_at);
     result.set(row.id, { id: row.id, title: row.title, productId: row.product_id, publisher: row.publisher,
       format: row.format, launchDate: row.launch_date, status: row.status, revision: row.revision,

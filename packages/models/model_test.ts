@@ -5,7 +5,7 @@ import type { Analysis, SubmissionInput } from "@clearpath/contracts";
 
 async function instrumentedStore() {
   const client = await PGlite.create("memory://");
-  for (const file of ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql"]) {
+  for (const file of ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql", "004_queue_paging.sql", "005_change_request_feedback.sql"]) {
     await client.exec(await Deno.readTextFile(new URL(`./migrations/${file}`, import.meta.url)));
   }
   const state = { queries: 0, failAfter: 0 };

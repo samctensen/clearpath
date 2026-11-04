@@ -1,6 +1,8 @@
 import { z } from "zod";
 export * from "./ai-review.ts";
 export * from "./submission-guidance.ts";
+export * from "./change-request.ts";
+import type { ChangeRequestFeedback } from "./change-request.ts";
 import type { DashboardRow } from "./submission-guidance.ts";
 
 export const productIds = ["card", "personal_loan", "mortgage", "unknown"] as const;
@@ -77,6 +79,8 @@ export interface Revision {
   createdAt: string;
 }
 export interface Activity {
+  /** Present on new change requests; legacy audit messages remain untouched. */
+  changeRequest?: ChangeRequestFeedback;
   id: string;
   type: "submitted" | "revised" | "finding_reviewed" | "manual_finding" | "finding_resolved" | "changes_requested" | "approved" | "deleted";
   actor: string;

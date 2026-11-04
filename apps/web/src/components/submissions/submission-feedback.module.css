@@ -12,3 +12,9 @@
 .missingList li + li { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--dash-border); }
 .checkHeading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; }
 .checkHeading strong { font-size: 14px; }
+
+.requestContent { min-width: 0; overflow-wrap: anywhere; }
+.requestContent p { white-space: pre-wrap; }
+.requestItems { list-style: none; padding: 0; margin: 16px 0 0; }
+.requestItems li + li { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--dash-border); }
+.requestItems blockquote { margin: 10px 0; padding-left: 12px; border-left: 2px solid var(--dash-accent); white-space: pre-wrap; overflow-wrap: anywhere; }
