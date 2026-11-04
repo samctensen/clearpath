@@ -84,7 +84,7 @@ export function DecisionLog() {
           <span className={styles.recordTop}><strong>{record.title}</strong><span className={styles.revision}>Rev. {record.revision}</span></span>
           <span className={styles.recordMeta}><CaseStatusBadge status={record.decision === "approve" ? "approved" : "changes_requested"} /><span>{record.publisher}</span></span>
           {hasDecisionFeedback(record.feedback) && <span className={styles.recordFeedback}>{record.feedback}</span>}
-          <span className={styles.recordBottom}><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time>{record.revision < record.currentRevision && <strong>Earlier revision (current: {record.currentRevision})</strong>}</span>
+          <span className={styles.recordBottom}><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time>{record.caseDeleted ? <strong>Archived submission</strong> : record.revision < record.currentRevision && <strong>Earlier revision (current: {record.currentRevision})</strong>}</span>
         </a></li>)}</ul>
       </section>
       <aside className={styles.decisionDetail} aria-labelledby="decision-detail-title">
@@ -97,7 +97,19 @@ export function DecisionLog() {
 }
 
 function DecisionDetail({ record }: { record: DecisionRecord }) {
-  const { data, loading, error, reload } = useResource<CaseDetail>(`/cases/${encodeURIComponent(record.caseId)}`);
+  return record.caseDeleted ? <DecisionContent record={record} /> : <ActiveDecisionDetail record={record} />;
+}
+
+function ActiveDecisionDetail({ record }: { record: DecisionRecord }) {
+  const resource = useResource<CaseDetail>(`/cases/${encodeURIComponent(record.caseId)}`);
+  return <DecisionContent record={record} resource={resource} />;
+}
+
+function DecisionContent({ record, resource }: {
+  record: DecisionRecord;
+  resource?: { data: CaseDetail | null; loading: boolean; error: string; reload: () => void };
+}) {
+  const { data, loading, error, reload } = resource ?? {};
   const [copyState, setCopyState] = useState("");
   const revision = data?.revisions.find((revision) => revision.number === record.revision);
   const currentRevision = data?.case.revision ?? record.currentRevision;
@@ -114,7 +126,7 @@ function DecisionDetail({ record }: { record: DecisionRecord }) {
   return <>
     <div className={styles.decisionSummary}>
       <CaseStatusBadge status={record.decision === "approve" ? "approved" : "changes_requested"} /><h3>{record.title}</h3><p>{record.publisher}</p>
-      {historical && <div className={styles.historical}><DashboardIcon name="code-branch" size={15} /><span><strong>Earlier revision</strong>This decision covers revision {record.revision}. The current case is on revision {currentRevision}.</span></div>}
+      {record.caseDeleted ? <div className={styles.historical}><DashboardIcon name="file-lines" size={15} /><span><strong>Archived submission</strong>This submission was deleted from the active queue. Its decision, feedback, and version references are retained here.</span></div> : historical && <div className={styles.historical}><DashboardIcon name="code-branch" size={15} /><span><strong>Earlier revision</strong>This decision covers revision {record.revision}. The current case is on revision {currentRevision}.</span></div>}
       <dl className={styles.recordFacts}><div><dt>Recorded by</dt><dd>{record.actor === "reviewer" ? "Demo reviewer" : record.actor}</dd></div><div><dt>Decision date</dt><dd><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time></dd></div><div><dt>Policy version</dt><dd>{record.policyVersion}</dd></div><div><dt>Offer version</dt><dd>{record.offerVersion ?? "No matching offer"}</dd></div></dl>
     </div>
     {hasDecisionFeedback(record.feedback) && <section className={styles.feedback}><h3>Reviewer feedback</h3><p>{record.feedback}</p></section>}
@@ -128,6 +140,6 @@ function DecisionDetail({ record }: { record: DecisionRecord }) {
       </section>
     </>}
     {data && !revision && <div className={styles.feedback}><p>The reviewed revision could not be found. Open the case to inspect its history.</p></div>}
-    <footer className={styles.decisionFooter}><Link className="button secondary" href={`/cases/${encodeURIComponent(record.caseId)}?revision=${record.revision}`}>Open revision {record.revision}<DashboardIcon name="arrow-up-right" size={12} /></Link><button type="button" className="button ghost" onClick={copyLink}><DashboardIcon name="link" size={12} />Copy decision link</button>{copyState && <p className={styles.copyStatus} role="status">{copyState}</p>}</footer>
+    <footer className={styles.decisionFooter}>{!record.caseDeleted && <Link className="button secondary" href={`/cases/${encodeURIComponent(record.caseId)}?revision=${record.revision}`}>Open revision {record.revision}<DashboardIcon name="arrow-up-right" size={12} /></Link>}<button type="button" className="button ghost" onClick={copyLink}><DashboardIcon name="link" size={12} />Copy decision link</button>{copyState && <p className={styles.copyStatus} role="status">{copyState}</p>}</footer>
   </>;
 }

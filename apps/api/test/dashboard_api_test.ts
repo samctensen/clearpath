@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { createTestStore } from "@clearpath/models";
 import { analyze, offers, POLICY_VERSION } from "@clearpath/checks";
-import type { DashboardResponse } from "@clearpath/contracts";
+import { type DashboardResponse, decodeQueueCursor, encodeQueueCursor } from "@clearpath/contracts";
 import { createApiServer } from "../src/server.ts";
 
 Deno.test("dashboard endpoint validates filters, preserves cohorts and never reseeds empty filtered results", async () => {
@@ -190,6 +190,56 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
       headers: { cookie },
     });
     assert.equal(conflicting.statusCode, 400);
+  } finally {
+    await app.close();
+    await store.close();
+  }
+});
+
+Deno.test("dashboard rejects malformed cursor timestamps before SQL while preserving PostgreSQL precision", async () => {
+  const store = await createTestStore();
+  const app = await createApiServer({
+    store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32),
+  });
+  try {
+    const initial = await app.inject({ method: "GET", url: "/api/dashboard?sort=updatedAt" });
+    assert.equal(initial.statusCode, 200);
+    const cookie = initial.headers["set-cookie"] as string;
+    const id = initial.json<DashboardResponse>().rows[0].id;
+    const valid = "2026-11-04 10:20:30.123456+00";
+    let dashboardCalls = 0;
+    const dashboard = store.dashboard.bind(store);
+    store.dashboard = (workspace, query) => {
+      dashboardCalls++;
+      return dashboard(workspace, query);
+    };
+    for (const malformed of [
+      "garbage", "", "infinity", "2026-02-30T10:20:30Z",
+      "2026-11-04T25:20:30Z", "2026-11-04T10:20:30+16:00", "0000-11-04T10:20:30Z",
+    ]) {
+      for (const field of ["createdAt", "key"] as const) {
+        const encoded = encodeQueueCursor({ key: valid, createdAt: valid, id, [field]: malformed });
+        for (const direction of ["after", "before"]) {
+          const query = new URLSearchParams({ sort: "updatedAt", [direction]: encoded });
+          const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}`, headers: { cookie } });
+          assert.equal(response.statusCode, 400, `${direction}.${field}: ${malformed}`);
+          assert.equal(response.json().error.code, "invalid");
+        }
+      }
+    }
+    assert.equal(dashboardCalls, 0);
+    for (const timestamp of [
+      valid, "2026-11-04T10:20:30.123456Z", "2026-11-04 10:20:30+05",
+      "2026-11-04 10:20:30.123456+0530", "2026-11-04T10:20:30.123456-07:00",
+    ]) {
+      const encoded = encodeQueueCursor({ key: timestamp, createdAt: timestamp, id });
+      assert.equal(decodeQueueCursor(encoded).createdAt, timestamp);
+      for (const direction of ["after", "before"]) {
+        const query = new URLSearchParams({ sort: "updatedAt", [direction]: encoded });
+        const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}`, headers: { cookie } });
+        assert.equal(response.statusCode, 200, timestamp);
+      }
+    }
   } finally {
     await app.close();
     await store.close();

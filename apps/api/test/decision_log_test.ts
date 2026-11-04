@@ -35,8 +35,36 @@ Deno.test("decision log preserves revision context and feedback, includes histor
     assert.equal(approval.policyVersion, POLICY_VERSION);
     assert.equal(approval.offerVersion, offers[0].version);
     assert.equal(approval.actor, "reviewer");
+    assert.equal(approval.caseDeleted, false);
     assert.deepEqual((await request("/decisions")).json(), records);
     assert.deepEqual((await app.inject({ method: "GET", url: "/api/decisions" })).json(), []);
+  } finally { await app.close(); await store.close(); }
+});
+
+Deno.test("deleted submissions retain an archived decision record without restoring case access", async () => {
+  const store = await createTestStore();
+  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seed: false });
+  try {
+    const initial = await app.inject({ method: "GET", url: "/api/decisions" });
+    const cookie = initial.headers["set-cookie"] as string;
+    const request = (url: string, payload?: object, role = "reviewer") => app.inject({ method: payload ? "POST" : "GET", url: `/api${url}`, headers: { cookie, "x-demo-role": role }, ...(payload ? { payload } : {}) });
+    const input: SubmissionInput = { title: "Archived campaign", productId: "card", offerId: offers[0].id, content: offers[0].approvedCopy, format: "landing_page", publisher: "Demo publisher", launchDate: "2026-11-15", completeAsset: true, linksToApplication: false, substantiation: "" };
+    const created = await request("/cases", input, "submitter");
+    assert.equal(created.statusCode, 201);
+    const path = `/cases/${created.json().case.id}`;
+    assert.equal((await request(`${path}/decision`, { expectedRevision: 1, decision: "request_changes", note: "Please clarify the campaign context." })).statusCode, 200);
+    const before = (await request("/decisions")).json<DecisionRecord[]>();
+    assert.equal(before.length, 1);
+    assert.equal(before[0].caseDeleted, false);
+    assert.equal((await request(`${path}/delete`, { expectedRevision: 1 }, "submitter")).statusCode, 200);
+    const response = await request("/decisions");
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), before.map(record => ({ ...record, caseDeleted: true })));
+    assert.equal((await request(path)).statusCode, 404);
+    assert.deepEqual((await request("/cases")).json(), []);
+    const otherWorkspace = await app.inject({ method: "GET", url: "/api/decisions" });
+    assert.deepEqual(otherWorkspace.json(), []);
+    assert.equal((await app.inject({ method: "GET", url: `/api${path}`, headers: { cookie: otherWorkspace.headers["set-cookie"] as string } })).statusCode, 404);
   } finally { await app.close(); await store.close(); }
 });
 

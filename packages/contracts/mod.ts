@@ -102,6 +102,12 @@ export interface CaseSummary extends QueueCohortItem {
   unknowns: number;
   updatedAt: string;
 }
+function isQueueTimestamp(value: string): boolean {
+  // Accept the ISO and PostgreSQL forms we emit, preserving microsecond precision.
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:0\d|1[0-5])(?::?[0-5]\d)?)$/.exec(value);
+  return !!match && !match[1].startsWith("0000-") &&
+    submissionSchema.shape.launchDate.safeParse(match[1]).success;
+}
 // Rejected at the boundary, so a tampered or stale cursor is a 400 and never a 500.
 const cursorValue = z.string().min(1).max(512).refine((value) => {
   try {
@@ -128,6 +134,18 @@ export const dashboardQuerySchema = z.object({
 }).strict().refine((value) => !(value.after && value.before), {
   message: "Use either after or before, not both",
   path: ["after"],
+}).superRefine((value, context) => {
+  if (value.sort !== "updatedAt") return;
+  for (const direction of ["after", "before"] as const) {
+    const encoded = value[direction];
+    if (!encoded) continue;
+    let cursor: QueueCursor;
+    try { cursor = decodeQueueCursor(encoded); }
+    catch { continue; } // cursorValue already reports malformed cursor payloads.
+    if (cursor.key !== null && !isQueueTimestamp(cursor.key)) {
+      context.addIssue({ code: "custom", message: "Invalid queue timestamp", path: [direction] });
+    }
+  }
 });
 export type DashboardQuery = z.infer<typeof dashboardQuerySchema>;
 
@@ -168,7 +186,7 @@ export interface QueueCursor {
 }
 const queueCursorSchema = z.object({
   key: z.string().nullable(),
-  createdAt: z.string().min(1),
+  createdAt: z.string().refine(isQueueTimestamp, "Invalid queue timestamp"),
   id: z.string().min(1),
 }).strict();
 
@@ -205,6 +223,7 @@ export interface CaseDetail {
 export interface DecisionRecord {
   id: string;
   caseId: string;
+  caseDeleted: boolean;
   revision: number;
   currentRevision: number;
   title: string;

@@ -37,7 +37,7 @@ type DB = {
   transaction<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 };
-const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_queue_paging.sql", "003_soft_delete_cases.sql"];
+const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql", "004_queue_paging.sql"];
 class AiReviewBudgetExceeded extends Error {}
 const id = () => crypto.randomUUID();
 const iso = (date: unknown) => new Date(date as string).toISOString();
@@ -469,7 +469,7 @@ export class Store {
   async listDecisions(workspace: string): Promise<DecisionRecord[]> {
     const rows = await this.db.query(`
       SELECT d.id, d.case_id, d.revision, d.decision, d.created_at,
-        c.revision AS current_revision,
+        c.revision AS current_revision, c.deleted_at IS NOT NULL AS case_deleted,
         r.input->>'title' AS title, r.input->>'productId' AS product_id,
         r.input->>'publisher' AS publisher,
         r.analysis->>'policyVersion' AS policy_version,
@@ -487,7 +487,7 @@ export class Store {
       WHERE c.workspace_id = $1
       ORDER BY d.created_at DESC, d.id DESC`, [workspace]);
     return rows.map((row) => ({
-      id: row.id, caseId: row.case_id, revision: row.revision,
+      id: row.id, caseId: row.case_id, caseDeleted: row.case_deleted, revision: row.revision,
       currentRevision: row.current_revision, title: row.title,
       productId: row.product_id, publisher: row.publisher, decision: row.decision,
       feedback: row.feedback, actor: row.actor, createdAt: iso(row.created_at),
