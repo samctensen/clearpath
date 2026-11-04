@@ -6,8 +6,8 @@
 .dialog > p { color: var(--dash-muted); line-height: 1.7; }
 .dialog footer, .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
 .discardArea { flex-basis: 100%; margin-top: 7px; padding-top: 12px; border-top: 1px solid var(--dash-border); }
-.dialog .discardButton { color: #ff9f9f; }
-.dialog .discardButton:hover:not(:disabled) { background: #ff77770a; color: #ffb3b3; }
+.dialog .discardButton { color: var(--dash-danger); }
+.dialog .discardButton:hover:not(:disabled) { background: color-mix(in srgb, var(--dash-danger) 5%, transparent); color: color-mix(in srgb, var(--dash-danger) 80%, var(--dash-text)); }
 .notice { padding: 15px 17px; border: 1px solid var(--dash-border); border-radius: 12px; background: var(--dash-panel); margin-bottom: 16px; overflow-wrap: anywhere; }
 .notice p { margin-top: 5px; color: var(--dash-muted); font-size: 12px; line-height: 1.7; }
 .notice strong { font-size: 13px; }

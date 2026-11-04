@@ -8,5 +8,5 @@
 .notice { position: fixed; right: 20px; bottom: 20px; z-index: 1100; max-width: min(360px, calc(100vw - 40px)); padding: 11px 16px; border: 1px solid #363636; border-radius: 10px; background: #202020; color: var(--dash-text); box-shadow: 0 8px 28px #0008; font-size: 13px; }
 @media (max-width: 650px) { .trigger { width: 36px; height: 44px; } .menu :is(a, button) { min-height: 44px; } }
 
-.menu .danger, .menu .danger > span { color: #ff8888; }
-.menu .danger:hover, .menu .danger:focus { background: #ff555514; }
+.menu .danger, .menu .danger > span { color: var(--dash-danger); }
+.menu .danger:hover, .menu .danger:focus { background: color-mix(in srgb, var(--dash-danger) 8%, transparent); }

@@ -14,6 +14,10 @@
   --dash-info: #ffc100;
   --dash-waiting: #1fa2ff;
   --dash-approved: #19e67f;
+  /* Hue 0 at lightness 63, where the old #ff8888 sat at 77 and read as salmon. */
+  --dash-danger: #ff4040;
+  --dash-danger-fill: #c62828;
+  --dash-danger-fill-hover: #d32f2f;
   --dash-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --canvas: var(--dash-bg);
   --paper: var(--dash-panel);
@@ -52,6 +56,12 @@ small { font-size: 12px; }
 .button.primary { background: var(--dash-accent-fill); border-color: #8351dd; color: #fff; box-shadow: inset 0 1px 0 #ffffff12, 0 2px 4px #0005, 0 3px 12px #6d28d91a; }
 .button.primary:hover:not(:disabled) { background: var(--dash-accent-fill-hover); box-shadow: inset 0 1px 0 #ffffff18, 0 3px 12px #6d28d92a; }
 .button.primary:disabled, fieldset:disabled .button.primary { background: #202020; color: #858585; border-color: #303030; box-shadow: none; opacity: 1; }
+.button.danger { background: var(--dash-danger-fill); border-color: #dc3b3b; color: #fff; box-shadow: inset 0 1px 0 #ffffff12, 0 2px 4px #0005, 0 3px 12px color-mix(in srgb, var(--dash-danger-fill) 10%, transparent); }
+.button.danger:hover:not(:disabled) { background: var(--dash-danger-fill-hover); box-shadow: inset 0 1px 0 #ffffff18, 0 3px 12px color-mix(in srgb, var(--dash-danger-fill) 17%, transparent); }
+.button.danger:disabled, fieldset:disabled .button.danger { background: #202020; color: #858585; border-color: #303030; box-shadow: none; opacity: 1; }
+/* The shared ring is the accent colour, which on a red destructive button is the one
+   purple left on it. Same ring, matched to the control. */
+.button.danger:focus-visible { outline-color: var(--dash-danger); }
 .button.secondary { background: var(--dash-raised); border-color: var(--line); color: var(--ink); }
 .button.secondary:hover:not(:disabled) { border-color: #454545; background: #202020; }
 .button.ghost { background: transparent; color: var(--muted); }

@@ -131,7 +131,7 @@ export function QueueActionDialog({ caseId, title, action, role, currentRole, on
       </div>
       <footer className={styles.footer}>
         <button type="button" className="button secondary" disabled={pending} onClick={close}>Cancel</button>
-        {approvalNeedsReview ? <Link href={`${path}#decision`} className="button primary" aria-disabled={pending || undefined} tabIndex={pending ? -1 : undefined} onClick={event => { if (saving.current) event.preventDefault(); }}>Continue review<DashboardIcon name="arrow-right" size={14} /></Link> : <button type="submit" className={`button primary ${action === "delete" ? styles.deleteButton : ""}`} disabled={!canSubmit}>{pending ? "Saving…" : copy.confirm}</button>}
+        {approvalNeedsReview ? <Link href={`${path}#decision`} className="button primary" aria-disabled={pending || undefined} tabIndex={pending ? -1 : undefined} onClick={event => { if (saving.current) event.preventDefault(); }}>Continue review<DashboardIcon name="arrow-right" size={14} /></Link> : <button type="submit" className={`button ${action === "delete" ? "danger" : "primary"}`} disabled={!canSubmit}>{pending ? "Saving…" : copy.confirm}</button>}
       </footer>
     </form>
   </dialog>;
