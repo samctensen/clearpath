@@ -42,6 +42,12 @@
 .checkEmpty p { flex: 1; min-width: 0; }
 .emptyDot { flex-shrink: 0; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #5c5c5c; }
 .previewBody { margin-top: 20px; padding-top: 17px; border-top: 1px solid var(--dash-border); }
+.draftLabel { margin-bottom: 9px; color: var(--dash-text); font-size: 13px; font-weight: 600; }
+.coverageDetails { margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--dash-border); }
+.coverageDetails summary { color: var(--dash-muted); cursor: pointer; font-size: 12px; line-height: 1.6; }
+.coverageDetails summary > span { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.coverageDetails[open] summary { color: var(--dash-accent); }
+@media (max-width: 600px) { .coverageDetails summary { min-height: 44px; padding-block: 11px; } }
 .scope { color: var(--dash-muted); font-size: 12px; line-height: 1.7; }
 .checkVersions { display: flex; flex-wrap: wrap; gap: 5px 13px; margin-top: 14px; color: var(--dash-muted); font-size: 10px; }
 .previewBody :global(.coverage-summary) { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 15px; }
@@ -68,3 +74,14 @@
 @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 22px; } .rail { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } .checkPanel { grid-row: span 2; } .scopeNote { align-self: start; } }
 @media (max-width: 600px) { .section { padding: 20px 17px; } .fieldGrid { grid-template-columns: minmax(0, 1fr); gap: 17px; } .sectionHeading { margin-bottom: 20px; } .field input { min-height: 44px; } .field .copyInput { padding: 13px; min-height: 200px; } .formFooter { padding: 16px; } .submitRow :global(.button) { min-height: 44px; } .submitRow :global(.primary) { padding-inline: 12px; } .rail { grid-template-columns: minmax(0, 1fr); gap: 21px; } .checkPanel { grid-row: auto; } .checkButton { min-height: 44px; } .fieldLabel small { font-size: 10px; } .loadingFields { grid-template-columns: 1fr; gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; opacity: .65; } .field input, .field textarea { transition: none; } }
+
+/* DOM order stays editor → self-check → submit at every breakpoint. */
+.form { grid-template-areas: "editor rail" "footer rail"; grid-template-rows: min-content 1fr; row-gap: 0; }
+.form > .editor { grid-area: editor; border-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.form > .rail { grid-area: rail; }
+.form > .formFooter { grid-area: footer; border: 1px solid var(--dash-border); border-radius: 0 0 14px 14px; }
+@media (max-width: 900px) {
+  .form { grid-template-areas: "editor" "rail" "footer"; grid-template-rows: auto auto auto; row-gap: 22px; }
+  .form > .editor { border-bottom: 1px solid var(--dash-border); border-radius: 14px; }
+  .form > .formFooter { border-radius: 14px; }
+}

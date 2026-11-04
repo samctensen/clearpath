@@ -108,6 +108,8 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
   const matchingOffers = offers.filter((offer) => offer.productId === input.productId);
   const selectedOffer = offers.find((offer) => offer.id === input.offerId);
   const isPending = Boolean(pending);
+  const previewConcerns = preview?.checks.filter((check) => check.status === "finding" || check.status === "unknown") ?? [];
+  const previewOtherChecks = preview?.checks.filter((check) => check.status === "passed" || check.status === "not_applicable") ?? [];
 
   function update<K extends keyof SubmissionInput>(key: K, value: SubmissionInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
@@ -171,7 +173,7 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
   ];
 
   return (
-    <form className={styles.layout} onSubmit={submit}>
+    <form className={`${styles.layout} ${styles.form}`} onSubmit={submit}>
       <div className={styles.editor}>
         <fieldset disabled={isPending} className={styles.fields}>
           <section className={styles.section} aria-labelledby={`${fieldId}-context`}>
@@ -217,16 +219,6 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
             </label>
           </section>
         </fieldset>
-        <div className={styles.formFooter}>
-          {cannotRevise && <p className={styles.roleNote}>Switch to Submitter to submit this revision.</p>}
-          {errorTarget === "save" && <ErrorMessage message={error} />}
-          <div className={styles.submitRow}>
-            <button className="button ghost" type="button" disabled={isPending} onClick={onCancel}>Cancel</button>
-            <button className="button primary" type="submit" disabled={isPending || cannotRevise}>
-              {pending === "save" ? "Submitting…" : revision === undefined ? "Submit for review" : "Submit new revision"}<DashboardIcon name="arrow-right" size={14} />
-            </button>
-          </div>
-        </div>
       </div>
       <aside className={styles.rail} aria-label="Self-check and reference">
         <section className={styles.checkPanel} aria-labelledby={`${fieldId}-check`} aria-busy={pending === "analyze"}>
@@ -241,10 +233,15 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
           </div>}
           {preview && (
             <div className={styles.previewBody} aria-live="polite">
+              <h3 className={styles.draftLabel}>Draft check · not yet submitted</h3>
               <p className={styles.scope}>{preview.scope}</p>
               <AnalysisSummary analysis={preview} />
               <div className={styles.checkVersions}><span>Policy {preview.policyVersion}</span><span>Offer version {preview.offerVersion ?? "unknown"}</span></div>
-              <div className="check-list">{preview.checks.map((check) => <CheckEvidence key={check.ruleId} check={check} />)}</div>
+              {previewConcerns.length > 0 && <div className="check-list">{previewConcerns.map((check) => <CheckEvidence key={check.ruleId} check={check} />)}</div>}
+              {previewOtherChecks.length > 0 && <details className={styles.coverageDetails}>
+                <summary>Passed and not applicable checks <span>({previewOtherChecks.length})</span></summary>
+                <div className="check-list">{previewOtherChecks.map((check) => <CheckEvidence key={check.ruleId} check={check} />)}</div>
+              </details>}
             </div>
           )}
         </section>
@@ -254,6 +251,16 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
         </section>
         <div className={styles.scopeNote}><DashboardIcon name="circle-info" size={16} /><p>Checks cover submitted text. Visual placement and presentation require separate review.</p></div>
       </aside>
+      <div className={styles.formFooter}>
+        {cannotRevise && <p className={styles.roleNote}>Switch to Submitter to submit this revision.</p>}
+        {errorTarget === "save" && <ErrorMessage message={error} />}
+        <div className={styles.submitRow}>
+          <button className="button ghost" type="button" disabled={isPending} onClick={onCancel}>Cancel</button>
+          <button className="button primary" type="submit" disabled={isPending || cannotRevise}>
+            {pending === "save" ? "Submitting…" : revision === undefined ? "Submit for review" : "Submit new revision"}<DashboardIcon name="arrow-right" size={14} />
+          </button>
+        </div>
+      </div>
     </form>
   );
 }

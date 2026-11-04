@@ -45,3 +45,13 @@ Sam approved implementation. Small integrated commits: 73b7665 (Claude shared wo
 The separate Claude user request to remove cookies was completed concurrently and is now integrated: visitors share one demo workspace and submission links work between visitors. This supersedes earlier references to per-browser workspace isolation. Store-level workspace scoping remains. README documents the shared reset endpoint; do not call it during production verification.
 
 Validation: 173 tests passed; type checks and production build passed. Independent GPT code review's four findings were fixed and re-reviewed; real Claude screenshot review informed visual refinements. Desktop/390px browser checks passed for selection/filter/paging/role and missing-information editor behavior. Hosted deployments were not changed in this implementation pass. The remaining untracked .claude/ directory is local-only configuration.
+
+## Role design audit and scroll fixes — 2026-11-04
+
+Claude Opus reviewed the new role designs and reference pages, then re-reviewed corrections and actionable reviewer controls. Findings/dispositions and verification are in `docs/reviews/2026-11-04-role-design-and-scroll-review.md`. Two subagents implemented the loading geometry and design corrections; cross-review caught and fixed the expanded-self-check footer gap.
+
+Dashboard requests reserve settled element heights while loading and disable automatic scroll anchoring within the dashboard. Results never remain stale/actionable under new filters. Slow-response production-mode browser check: desktop paging held y=453 throughout; final mobile empty-filter Reset held y=511 before/after all panels settled (510.5 during subpixel layout), even as document height grew from 1355 to 3986. Single-result search holds 1628px document height during pending. Genuine shorter final results may clamp naturally. Explicit Preview journey/View queue navigation still scrolls intentionally.
+
+Empty feedback is compact, actions/status colors consistent, missing-information evidence clearly labelled. Form draft checks distinguish unsaved results; passed/not-applicable details collapse, concerns stay visible, and self-check precedes final submission controls on mobile. All four collapsed checks were expanded successfully in browser; mobile width stayed 390px with no horizontal overflow.
+
+173 tests, type checks and production build passed. No production deployment or demo-data mutation/reset was performed; deterministic Run checks used the existing local app. Temporary read-only delayed proxy and production test servers are task-owned and stopped after verification. Main remains canonical; `.claude/` remains local-only.

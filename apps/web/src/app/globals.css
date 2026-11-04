@@ -99,6 +99,7 @@ textarea { resize: vertical; line-height: 1.65; }
 .notice strong { font-weight: 600; }
 .notice p { margin-top: 3px; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .notice-approved { background: color-mix(in srgb, var(--dash-approved) 12%, #0b0b0b); border-color: color-mix(in srgb, var(--dash-approved) 28%, #101010); color: color-mix(in srgb, var(--dash-approved) 78%, var(--dash-text)); }
+.notice-changes { background: color-mix(in srgb, var(--dash-waiting) 12%, #0b0b0b); border-color: color-mix(in srgb, var(--dash-waiting) 28%, #101010); color: color-mix(in srgb, var(--dash-waiting) 78%, var(--dash-text)); }
 .notice-concern { background: color-mix(in srgb, var(--dash-info) 12%, #0b0b0b); border-color: color-mix(in srgb, var(--dash-info) 28%, #101010); color: color-mix(in srgb, var(--dash-info) 78%, var(--dash-text)); }
 .action-notice .error-message { margin-bottom: 17px; }
 

@@ -143,7 +143,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
         back={{ href: "/", label: role === "submitter" ? "Submissions" : "Review queue" }}
         actions={<>
           {role === "submitter" && isCurrent && !editing && (
-            <button type="button" className="button primary" disabled={pending} onClick={() => setEditing(true)}><DashboardIcon name="pen" size={15} />{detail.case.status === "changes_requested" ? "Revise submission" : "Edit copy"}</button>
+            <button type="button" className="button primary" disabled={pending} onClick={() => setEditing(true)}><DashboardIcon name="pen" size={15} />{detail.case.status === "changes_requested" ? "Revise copy" : detail.case.status === "needs_information" ? "Add information" : "Edit copy"}</button>
           )}
           {canReview && !editing && <a href="#decision" className="button secondary">Review decision<DashboardIcon name="arrow-right" size={15} /></a>}
         </>}
@@ -151,9 +151,9 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
         <div className={styles.headingContext}>{role === "submitter" && detail.case.status === "ready_for_review" ? <span>Awaiting review</span> : <CaseStatusBadge status={detail.case.status} />}<span>Current revision {current.number}</span></div>
       </PageHeader>
 
-      {role === "submitter" && <SubmissionFeedback detail={detail} revisionNumber={revision.number} />}
-
       {editing && role === "submitter" && isCurrent && detail.case.status === "needs_information" && <AutomatedMissingInformation revision={current} />}
+
+      {role === "submitter" && <SubmissionFeedback detail={detail} revisionNumber={revision.number} />}
 
       {editing && role === "submitter" && isCurrent ? (
         <RevisionEditor
@@ -212,9 +212,9 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
             <ReviewCoverage analysis={revision.analysis} onShowCheck={jumpToCheck} />
           </section>
           {role === "reviewer" && decision && (
-            <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-concern"}`}>
+            <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-changes"}`}>
               <DashboardIcon name={decision.type === "approved" ? "circle-check" : "file-lines"} size={19} />
-              <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong><p>{decision.message}</p></div>
+              <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong><p>{decision.message}</p>{isCurrent && decision.type === "changes_requested" && <p>Awaiting a new revision from the submitter.</p>}</div>
             </div>
           )}
           {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}

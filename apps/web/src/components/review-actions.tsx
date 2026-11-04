@@ -124,7 +124,7 @@ export function ReviewDecision({ revision, unresolved, openManual, canRequest, m
       <div className="panel-heading">
         <div><h2>Review decision</h2><p>Record a copy decision for revision {revision}.</p></div>
       </div>
-      <p className="muted panel-caption">{blockers ? `Dismiss remaining findings or unknowns with a reason and resolve open manual concerns before approving (${blockers} remaining).` : "The decision applies to this copy. Visual review is separate."}</p>
+      <p className="muted panel-caption">{blockers ? `Dismiss remaining findings or unable-to-evaluate checks with a reason and resolve open manual concerns before approving (${blockers} remaining).` : "The decision applies to this copy. Visual review is separate."}</p>
       <div className="action-row">
         <button type="button" className="button secondary" disabled={pending} aria-expanded={requesting} onClick={() => setRequesting(!requesting)}><DashboardIcon name="message-plus" size={17} aria-hidden="true" />{requesting ? "Cancel request" : "Request changes"}</button>
         <button type="button" className="button primary" disabled={pending || blockers > 0} onClick={() => void mutate("/decision", { decision: "approve", note: "" })}><DashboardIcon name="check" size={17} aria-hidden="true" />Approve copy</button>

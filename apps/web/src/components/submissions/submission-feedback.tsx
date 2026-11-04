@@ -1,4 +1,5 @@
 import type { CaseDetail, Revision } from "@clearpath/contracts";
+import { CheckBadge } from "../check-evidence";
 import styles from "./submission-feedback.module.css";
 
 /** Human decisions belong to the revision they reviewed; manual concerns belong to the case. */
@@ -9,6 +10,11 @@ export function SubmissionFeedback({ detail, revisionNumber }: { detail: CaseDet
     ? detail.events.findLast((event) => event.revision < revisionNumber && event.type === "changes_requested")
     : undefined;
   const concerns = detail.manualFindings.filter((finding) => finding.status === "open");
+  const awaiting = revisionNumber === current.number && detail.case.status === "ready_for_review";
+  const emptyMessage = awaiting ? `Revision ${revisionNumber} submitted; awaiting human review.` : `No reviewer decision recorded for revision ${revisionNumber}.`;
+  if (!decision && !earlier && !concerns.length) {
+    return <p className={styles.emptyFeedback}>{emptyMessage}</p>;
+  }
   return (
     <section className={styles.feedback} aria-labelledby="submission-feedback-title">
       <h2 id="submission-feedback-title">Reviewer feedback</h2>
@@ -16,7 +22,7 @@ export function SubmissionFeedback({ detail, revisionNumber }: { detail: CaseDet
         <h3>{decision.type === "approved" ? `Copy approved for revision ${decision.revision}` : `Feedback on revision ${decision.revision}`}</h3>
         {decision.message && <p>{decision.message}</p>}
         {decision.type === "approved" && <p>Approval applies to this copy revision. Visual and legal review are separate.</p>}
-      </div> : <p>{revisionNumber === current.number && detail.case.status === "ready_for_review" ? `Revision ${revisionNumber} submitted; awaiting human review.` : `No reviewer decision recorded for revision ${revisionNumber}.`}</p>}
+      </div> : <p>{emptyMessage}</p>}
       {earlier && <div className={styles.entry}><h3>Earlier feedback on revision {earlier.revision}</h3><p>{earlier.message}</p></div>}
       <div className={styles.concerns}>
         <h3>Current open manual concerns</h3>
@@ -34,8 +40,8 @@ export function AutomatedMissingInformation({ revision }: { revision: Revision }
     <section className={styles.feedback} aria-labelledby="automated-missing-information-title">
       <h2 id="automated-missing-information-title">Automated missing information · Revision {revision.number}</h2>
       <p>These automated checks need more context. Human review is still required.</p>
-      <ul>{unknowns.map((check) => <li key={check.ruleId}>
-        <strong>{check.title}</strong>
+      <ul className={styles.missingList}>{unknowns.map((check) => <li key={check.ruleId}>
+        <div className={styles.checkHeading}><strong>{check.title}</strong><CheckBadge status="unknown" /></div>
         <p>{check.explanation}</p>
         {check.suggestion && <p>{check.suggestion}</p>}
       </li>)}</ul>
