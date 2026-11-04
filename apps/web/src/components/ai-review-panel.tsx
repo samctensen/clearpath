@@ -1,7 +1,7 @@
 "use client";
 
+import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, LoaderCircle, Plus, Sparkles } from "lucide-react";
 import type { AiReviewContent, AiReviewResponse, DemoRole, ManualFinding, Revision } from "@clearpath/contracts";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
@@ -83,12 +83,12 @@ export function AiReviewPanel({ path, revision, isCurrent, role, pending, findin
     <section className="panel ai-review-panel" aria-labelledby={`${id}-title`}>
       <div className="panel-heading ai-review-heading">
         <div>
-          <div className="section-title"><Sparkles size={20} aria-hidden="true" /><h2 id={`${id}-title`}>AI second opinion</h2><span className="check-badge check-not_applicable">Advisory only</span></div>
+          <div className="section-title"><DashboardIcon name="sparkles" size={20} aria-hidden="true" /><h2 id={`${id}-title`}>AI second opinion</h2><span className="check-badge check-not_applicable">Advisory only</span></div>
           <p>Separate compliance and marketing feedback for revision {revision.number}. Human review and approval remain required.</p>
         </div>
         {!resource.loading && !resource.error && !review && resource.data?.available && isCurrent && (
           <button type="button" className="button secondary" disabled={generating || pending || failure?.conflict} onClick={() => void generate()}>
-            {generating ? <LoaderCircle size={16} className="spinner" aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
+            {generating ? <DashboardIcon name="rotate-right" size={16} className="spinner" aria-hidden="true" /> : <DashboardIcon name="sparkles" size={16} aria-hidden="true" />}
             {generating ? "Generating AI review…" : "Generate AI review"}
           </button>
         )}
@@ -133,10 +133,10 @@ export function AiReviewPanel({ path, revision, isCurrent, role, pending, findin
                         <p className="ai-review-prose">{concern.explanation}</p>
                         <p className="suggestion ai-review-prose"><strong>Suggested change</strong>{concern.suggestedChange}</p>
                         {concern.referenceIds.length > 0 && <div className="ai-review-references"><strong>Supplied references</strong><ul>{concern.referenceIds.map((referenceId) => <li key={referenceId}>{referenceLabel(referenceId)}</li>)}</ul></div>}
-                        {added ? <p className="ai-concern-added"><Check size={15} aria-hidden="true" />Added to manual concerns</p> : onPromote && (
+                        {added ? <p className="ai-concern-added"><DashboardIcon name="check" size={15} aria-hidden="true" />Added to manual concerns</p> : onPromote && (
                           <button type="button" className="button secondary small" disabled={pending} onClick={async () => {
                             if (await onPromote(input)) setPromotionMessage(`Added “${concern.title}” to manual concerns.`);
-                          }}><Plus size={15} aria-hidden="true" />Add as manual concern</button>
+                          }}><DashboardIcon name="plus" size={15} aria-hidden="true" />Add as manual concern</button>
                         )}
                       </article>
                     );

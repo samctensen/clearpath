@@ -7,6 +7,8 @@ import {
   type CaseDetail,
   type CaseStatus,
   type CaseSummary,
+  type DashboardQuery,
+  type DashboardResponse,
   failure,
   type Result,
   type SubmissionInput,
@@ -480,6 +482,70 @@ export class Store {
       createdAt: iso(row.created_at),
       updatedAt: iso(row.updated_at),
     }));
+  }
+  async dashboard(workspace: string, query: DashboardQuery): Promise<DashboardResponse> {
+    // Only allowlisted SQL identifiers/directions are interpolated. User values stay parameters.
+    const orderColumn = { launchDate: "calendar_day", title: "lower(title) COLLATE \"C\"", updatedAt: "updated_at" }[query.sort];
+    const direction = query.direction === "desc" ? "DESC" : "ASC";
+    const [result] = await this.db.query(`
+      WITH matching AS (
+        SELECT c.id, c.status, c.revision, c.created_at, c.updated_at,
+          r.input->>'title' AS title, r.input->>'productId' AS product_id,
+          r.input->>'publisher' AS publisher, r.input->>'format' AS format,
+          r.input->>'launchDate' AS launch_date, r.analysis
+        FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
+        WHERE c.workspace_id = $1
+          AND ($2 = '' OR strpos(lower((r.input->>'title') || ' ' || (r.input->>'publisher')), lower($2)) > 0)
+          AND ($3 = 'all' OR r.input->>'productId' = $3)
+      ), cohort AS MATERIALIZED (
+        SELECT id, status, revision, created_at, updated_at, title, product_id, publisher, format, launch_date,
+          CASE WHEN launch_date ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$' THEN
+            CASE WHEN substring(launch_date, 9, 2)::int <= CASE substring(launch_date, 6, 2)
+              WHEN '02' THEN CASE WHEN substring(launch_date, 1, 4)::int % 400 = 0
+                OR (substring(launch_date, 1, 4)::int % 4 = 0 AND substring(launch_date, 1, 4)::int % 100 <> 0)
+                THEN 29 ELSE 28 END
+              WHEN '04' THEN 30 WHEN '06' THEN 30 WHEN '09' THEN 30 WHEN '11' THEN 30 ELSE 31 END
+            THEN launch_date END
+          END AS calendar_day,
+          (SELECT count(*) FROM jsonb_array_elements(analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
+          (SELECT count(*) FROM jsonb_array_elements(analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
+        FROM matching
+      )
+      SELECT (SELECT count(*) FROM cases WHERE workspace_id = $1) AS workspace_total,
+        COALESCE((SELECT jsonb_agg(to_jsonb(cohort) ORDER BY calendar_day ASC NULLS LAST, created_at ASC, id ASC) FROM cohort), '[]'::jsonb) AS cohort,
+        COALESCE((SELECT array_agg(id ORDER BY ${orderColumn} ${direction} NULLS LAST, created_at ASC, id ASC)
+          FROM cohort WHERE $4 = 'all' OR status = $4), ARRAY[]::text[]) AS row_ids`,
+      [workspace, query.q, query.product, query.status]);
+    const cohort: CaseSummary[] = result.cohort.map((row: Row) => ({
+      id: row.id, title: row.title, productId: row.product_id, publisher: row.publisher,
+      format: row.format, launchDate: row.launch_date, status: row.status, revision: row.revision,
+      findings: Number(row.findings), unknowns: Number(row.unknowns),
+      createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+    }));
+    const byId = new Map(cohort.map((item) => [item.id, item]));
+    const counts: Record<CaseStatus, number> = {
+      ready_for_review: 0, needs_information: 0, changes_requested: 0, approved: 0,
+    };
+    let nextLaunchDate: string | null = null;
+    let overdueCount = 0;
+    // Cohort is already ordered by valid target date, then creation and ID in SQL.
+    for (const row of result.cohort) {
+      counts[row.status as CaseStatus]++;
+      if (row.status === "approved" || row.calendar_day === null) continue;
+      nextLaunchDate ??= row.calendar_day;
+      if (row.calendar_day < query.today) overdueCount++;
+    }
+    const actionableStatus = query.role === "submitter" ? "changes_requested" : "ready_for_review";
+    return {
+      rows: result.row_ids.map((caseId: string) => byId.get(caseId)!),
+      cohort,
+      workspaceTotal: Number(result.workspace_total),
+      overview: {
+        total: cohort.length, openCount: cohort.length - counts.approved, counts,
+        actionable: cohort.filter((item) => item.status === actionableStatus || item.status === "needs_information").slice(0, 3),
+        nextLaunchDate, overdueCount,
+      },
+    };
   }
   async createCase(
     workspace: string,
