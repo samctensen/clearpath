@@ -1,0 +1,19 @@
+{
+  "name": "clearpath",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"deno task dev:api\" \"npm run dev --workspace @clearpath/web\"",
+    "dev:web": "npm run dev --workspace @clearpath/web",
+    "dev:api": "deno task dev:api",
+    "test": "deno task test",
+    "check": "deno task check && npm run typecheck --workspace @clearpath/web",
+    "build": "npm run build --workspace @clearpath/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "deno": "2.9.6"
+  }
+}
