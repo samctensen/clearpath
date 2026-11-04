@@ -131,8 +131,22 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
     if (!check) return;
     if (!isConcern(check) && passedChecksRef.current) passedChecksRef.current.open = true;
     const target = evidenceRef.current?.querySelector<HTMLElement>(`[data-check="${CSS.escape(ruleId)}"]`);
-    target?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: "start" });
+    if (!target) return;
+    // Focus moves for assistive technology; the wash is what a sighted reader follows.
+    target.focus({ preventScroll: true });
+    const reduced = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    // Removing the class and reading a layout property restarts the animation,
+    // so picking the same segment twice flashes twice. The class comes off
+    // again at the end, so a dropped animation can never leave a tint behind.
+    target.classList.remove(styles.checkFlash);
+    void target.offsetWidth;
+    target.classList.add(styles.checkFlash);
+    target.addEventListener(
+      "animationend",
+      () => target.classList.remove(styles.checkFlash),
+      { once: true },
+    );
   }
 
   return (
