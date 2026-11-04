@@ -28,4 +28,6 @@ Migration `003_soft_delete_cases.sql` adds nullable `cases.deleted_at`. Applied 
 
 ## Release
 
-Backend commit `9a6fd5b` deployed from a clean 16-file Git bundle. Frontend deployment pending final source commit. Keep navigation limited to existing routes; policy/decision-log pages remain in the other checkout. Do not merge the parent homepage PR or invite reviewers without instruction.
+Backend commit `9a6fd5b` deployed from a clean 16-file Git bundle. Frontend source commit `20569dd` deployed as `dpl_chtUePPf7gR5299nxDBKgBqeXAfx` and is READY on https://clearpathfinancial.xyz. Draft PR: https://github.com/samctensen/clearpath-frontend/pull/3. Keep navigation limited to existing routes; policy/decision-log pages remain in the other checkout. Do not merge the parent homepage PR or invite reviewers without instruction.
+
+Live browser verification: reviewer menu and fresh approval confirmation load correctly; canceled without mutation. Mobile chart retained branching layout at 390px and 320px with 44px targets and no horizontal overflow; compact navigation works. No browser console errors or deployment runtime error logs observed. Proof screenshot: `queue-approval-live.png` in the chat visualizations directory.
