@@ -1,5 +1,5 @@
 import type { Analysis, CheckResult } from "@clearpath/contracts";
-import { ArrowUpRight, Check, CircleHelp, Minus, TriangleAlert } from "lucide-react";
+import { DashboardIcon } from "./dashboard/dashboard-icon";
 import type { ReactNode } from "react";
 
 const checkLabels = {
@@ -16,8 +16,8 @@ const sourceLabels = {
 };
 
 export function CheckBadge({ status }: { status: CheckResult["status"] }) {
-  const Icon = { passed: Check, finding: TriangleAlert, unknown: CircleHelp, not_applicable: Minus }[status];
-  return <span className={`check-badge check-${status}`}><Icon size={13} aria-hidden="true" />{checkLabels[status]}</span>;
+  const icon = { passed: "check", finding: "triangle-exclamation", unknown: "circle-question", not_applicable: "minus" }[status];
+  return <span className={`check-badge check-${status}`}><DashboardIcon name={icon} size={13} aria-hidden="true" />{checkLabels[status]}</span>;
 }
 
 export function AnalysisSummary({ analysis }: { analysis: Analysis }) {
@@ -59,7 +59,7 @@ export function CheckEvidence({ check, children, onShowExcerpt, change }: {
       <div className="source-line">
         <span>{sourceLabels[check.reference.type]}</span>
         {check.reference.url ? (
-          <a href={check.reference.url} target="_blank" rel="noreferrer">{check.reference.label}<ArrowUpRight size={13} aria-hidden="true" /></a>
+          <a href={check.reference.url} target="_blank" rel="noreferrer">{check.reference.label}<DashboardIcon name="arrow-up-right" size={13} aria-hidden="true" /></a>
         ) : <span>{check.reference.label}</span>}
       </div>
       {children}

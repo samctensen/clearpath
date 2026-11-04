@@ -1,7 +1,7 @@
 "use client";
 
+import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { useState, type FormEvent } from "react";
-import { Check, MessageSquarePlus, Plus } from "lucide-react";
 import type { Disposition, ManualFinding } from "@clearpath/contracts";
 
 type Mutate = (path: string, body: object) => Promise<boolean>;
@@ -26,7 +26,7 @@ export function FindingActions({ ruleId, confirmationReason, disposition, mutate
           {disposition?.action !== "confirmed" && (
             <button type="button" className="button secondary small" disabled={pending} onClick={async () => {
               if (await mutate("/dispositions", { ruleId, action: "confirmed", reason: confirmationReason })) setDismissing(false);
-            }}><Check size={15} aria-hidden="true" />Confirm concern</button>
+            }}><DashboardIcon name="check" size={15} aria-hidden="true" />Confirm concern</button>
           )}
           <button type="button" className="button ghost small" aria-expanded={dismissing} disabled={pending} onClick={() => setDismissing(!dismissing)}>{dismissing ? "Cancel dismissal" : disposition?.action === "dismissed" ? "Update dismissal" : "Dismiss"}</button>
         </div>
@@ -57,7 +57,7 @@ export function ManualConcerns({ findings, mutate, canAdd, pending }: { findings
     <section className="panel evidence-panel">
       <div className="panel-heading">
         <div><h2>Manual concerns</h2><p>These stay open across revisions until resolved.</p></div>
-        {mutate && canAdd && <button type="button" className="button secondary small" aria-expanded={adding} disabled={pending} onClick={() => setAdding(!adding)}><Plus size={15} aria-hidden="true" />{adding ? "Cancel" : "Add concern"}</button>}
+        {mutate && canAdd && <button type="button" className="button secondary small" aria-expanded={adding} disabled={pending} onClick={() => setAdding(!adding)}><DashboardIcon name="plus" size={15} aria-hidden="true" />{adding ? "Cancel" : "Add concern"}</button>}
       </div>
       {mutate && canAdd && adding && (
         <form className="inline-form manual-form" onSubmit={async (event: FormEvent<HTMLFormElement>) => {
@@ -126,8 +126,8 @@ export function ReviewDecision({ revision, unresolved, openManual, canRequest, m
       </div>
       <p className="muted panel-caption">{blockers ? `Dismiss remaining findings or unknowns with a reason and resolve open manual concerns before approving (${blockers} remaining).` : "The decision applies to this copy. Visual review is separate."}</p>
       <div className="action-row">
-        <button type="button" className="button secondary" disabled={pending} aria-expanded={requesting} onClick={() => setRequesting(!requesting)}><MessageSquarePlus size={17} aria-hidden="true" />{requesting ? "Cancel request" : "Request changes"}</button>
-        <button type="button" className="button primary" disabled={pending || blockers > 0} onClick={() => void mutate("/decision", { decision: "approve", note: "" })}><Check size={17} aria-hidden="true" />Approve copy</button>
+        <button type="button" className="button secondary" disabled={pending} aria-expanded={requesting} onClick={() => setRequesting(!requesting)}><DashboardIcon name="message-plus" size={17} aria-hidden="true" />{requesting ? "Cancel request" : "Request changes"}</button>
+        <button type="button" className="button primary" disabled={pending || blockers > 0} onClick={() => void mutate("/decision", { decision: "approve", note: "" })}><DashboardIcon name="check" size={17} aria-hidden="true" />Approve copy</button>
       </div>
       {requesting && (
         <form className="inline-form" onSubmit={async (event: FormEvent<HTMLFormElement>) => {

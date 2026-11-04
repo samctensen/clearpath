@@ -1,0 +1,9 @@
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 0 0 20px; }
+.identity { min-width: 0; }
+.back { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--dash-muted); font-size: 12px; }
+.back:hover { color: var(--dash-text); }
+.heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.heading h1 { font-size: clamp(21px, 2vw, 28px); font-weight: 550; line-height: 1.3; letter-spacing: -.035em; }
+.description { max-width: 75ch; margin-top: 6px; color: var(--dash-muted); font-size: 13px; }
+.controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; flex: none; gap: 10px; }
+@media (max-width: 650px) { .header { flex-wrap: wrap; } .identity { flex: 1 1 230px; } .controls { margin-left: auto; } .heading h1 { font-size: 23px; } }

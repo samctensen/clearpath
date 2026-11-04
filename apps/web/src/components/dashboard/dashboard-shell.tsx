@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { DashboardIcon } from "./dashboard-icon";
 import styles from "./dashboard-shell.module.css";
 
 const navItems = [
-  { href: "/", label: "Review desk", icon: "grid-2", current: true },
-  { href: "/#submissions", label: "Review queue", icon: "list-check", current: false },
-  { href: "/catalog", label: "Offer library", icon: "book-open", current: false },
+  { href: "/", label: "Review desk", icon: "grid-2" },
+  { href: "/#submissions", label: "Review queue", icon: "list-check" },
+  { href: "/catalog", label: "Offer library", icon: "book-open" },
 ];
 
 /** A path that turns once and lands on an arrow: submission → decision. */
@@ -24,6 +25,7 @@ function Wordmark() {
 }
 
 export function DashboardShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   return (
     <div className={styles.shell}>
       <a className={styles.skip} href="#main">Skip to content</a>
@@ -37,7 +39,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </Link>
         <nav className={styles.nav} aria-label="Workspace">
           {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={styles.navLink} aria-current={item.current ? "page" : undefined}>
+            <Link key={item.label} href={item.href} className={styles.navLink} aria-current={(item.href === "/" ? pathname === "/" : item.href === "/catalog" ? pathname.startsWith("/catalog") : pathname.startsWith("/cases/") || pathname === "/new") ? "page" : undefined}>
               <DashboardIcon name={item.icon} size={15} className={styles.navIcon} />
               <span>{item.label}</span>
             </Link>

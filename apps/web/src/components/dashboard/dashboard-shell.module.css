@@ -1,20 +1,4 @@
 .shell {
-  --dash-bg: #090909;
-  --dash-sidebar: #090909;
-  --dash-panel: #101010;
-  --dash-raised: #181818;
-  --dash-border: #262626;
-  --dash-text: #ededed;
-  --dash-muted: #999999;
-  --dash-accent: #9865f5;
-  --dash-accent-fill: #6d28d9;
-  --dash-accent-fill-hover: #7c3aed;
-  --dash-ready: #a16bff;
-  --dash-info: #ffc53d;
-  --dash-waiting: #3bafff;
-  --dash-approved: #35e39c;
-  --dash-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-
   color-scheme: dark;
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
@@ -119,6 +103,7 @@
   transition: border-color .15s;
 }
 .userTrigger:hover, .userTrigger[aria-expanded="true"] { border-color: var(--dash-accent); }
+.shell .userTrigger[aria-expanded="false"]:focus-visible { outline: none; border-color: var(--dash-muted); }
 .userPanel {
   position: absolute;
   z-index: 15;
