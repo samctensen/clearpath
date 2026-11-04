@@ -27,28 +27,31 @@
 
 Files: packages/contracts/mod.ts, packages/checks/*, root configs; handoff checks.md.
 - [x] Define contracts, fictional catalog, workflow and rule expectations before implementation.
-- [ ] Claude writes and runs failing Deno tests, implements analyze(input):Analysis, reruns tests.
-- [ ] Independent review checks applicability and tests; integrate fixes and commit checkpoint.
+- [x] Implement and verify the analyzer with Claude and Deno tests.
+- [x] Review applicability against independent cases, integrate fixes, and commit the implementation checkpoint.
 
 ## Task 2: persistent backend
 
 Files: packages/models/*, apps/api/*; handoff backend.md.
-- [ ] Write failing service and HTTP tests against real PGlite.
-- [ ] Implement SQL migrations, model operations, service transitions and Fastify routes.
-- [ ] Verify persistence, isolation, stale revision rejection, approval guards and malformed requests.
-- [ ] Review and commit checkpoint.
+- [x] Cover model and HTTP behavior with tests against real PGlite.
+- [x] Implement SQL migrations, model operations, service transitions and Fastify routes.
+- [x] Verify persistence, isolation, stale revision rejection, approval guards and malformed requests.
+- [x] Review and commit the implementation checkpoint.
 
 ## Task 3: Next.js workbench
 
 Files: apps/web/src/*; handoff frontend.md.
-- [ ] Implement queue, form/self-check, side-by-side review, dispositions, revision/history and catalog view.
-- [ ] Integrate with API; use real failures/loading/empty states and visible demo identity switch.
-- [ ] Typecheck, production build and browser-check the complete loop and mobile layout.
-- [ ] Review and commit checkpoint.
+- [x] Implement queue, form/self-check, side-by-side review, dispositions, revision/history and catalog view.
+- [x] Integrate with the API and add loading, error, and empty states and a visible demo role switch.
+- [x] Pass type checks and the production build. Verify the seeded revision and approval workflow in the desktop browser.
+- [x] Review and commit the implementation checkpoint.
+- [ ] Verify the mobile layout and new submission date picker in a browser.
 
 ## Task 4: release verification
 
-- [ ] Run full tests, typechecks and build after integration.
-- [ ] Obtain independent holdout cases and a Claude final review; fix substantive findings.
-- [ ] Initialize CodeGraph (authorized), add run/deploy instructions and verify local app.
-- [ ] Deploy both apps once hosting access exists; verify deployed flow and report actual URLs/limits.
+- [x] Pass all 86 local tests, both type checks, and the production build after integration.
+- [x] Integrate the independent 53-case holdout review and Claude's final integration review.
+- [x] Initialize CodeGraph, document local and hosted setup, and verify the local workflow.
+- [x] Deploy both apps and pass the hosted smoke test through the Vercel fallback on API revision `03gmk0t4mxa8`. Document the URLs and initial seeding latency in the [deployment notes](../../deployment.md).
+- [ ] Verify custom-domain DNS and TLS.
+- [ ] Push the reviewed release.

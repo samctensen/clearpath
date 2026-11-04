@@ -58,7 +58,7 @@ async function seedWorkspace(deps: Dependencies, workspace: string) {
       substantiation: "",
     }))
   );
-  const seeded = await Promise.allSettled(samples.map(async (input, i) => {
+  for (const [i, input] of samples.entries()) {
     const created = await deps.store.createCase(workspace, input, deps.analyze(input));
     if (!created.ok) throw new Error("Unable to seed workspace");
     const caseId = created.value.case.id;
@@ -96,9 +96,6 @@ async function seedWorkspace(deps: Dependencies, workspace: string) {
       );
       if (!decision.ok) throw new Error("Unable to seed workspace");
     }
-  }));
-  if (seeded.some((result) => result.status === "rejected")) {
-    throw new Error("Unable to seed workspace");
   }
 }
 export async function createApiServer(deps: Dependencies) {

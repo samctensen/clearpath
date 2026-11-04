@@ -1,13 +1,12 @@
 # Build progress
 
-Plan: docs/superpowers/plans/2026-11-03-clearpath.md
+ClearPath uses two deployable apps in one repository. The web app runs on Next.js and the API uses Deno, Fastify, and Postgres. The feature branch is `codex/clearpath-review-workbench`. Implementation checkpoints are committed locally. Pushing the release is pending.
 
-- User chose two deployable apps in one repo; Deno backend + Next.js frontend + Neon.
-- Feature branch: codex/clearpath-review-workbench. Existing checkout had only README and authored docs; working here with disjoint agent file ownership.
-- Shared contracts, catalog, build spec, implementation plan and three handoffs written.
-- Check engine: assigned Claude. Backend: assigned native agent. Frontend: assigned native agent. Root integrates.
-- Hosting: Vercel CLI installed but not authenticated. Neon access not yet configured. Local PGlite avoids dependency on credentials.
-- CodeGraph initialization authorized once source is present.
-- Preflight: checks consumes SubmissionInput and produces Analysis; backend consumes both and produces CaseDetail/CaseSummary; frontend consumes the same contracts. No known signature conflicts. Roots alone edit shared contracts/config.
-- Ruling: use Atlas-style Fastify instead of initial Hono suggestion after Sam requested architecture inspection and accepted the adaptation. Runtime remains Deno. Cost: minor dependency overhead, familiar patterns.
-- Ruling: no script-generated worktree; use a feature branch in the initially empty checkout and scoped worker files. No existing app work is displaced.
+- Claude implemented the six-rule engine. The backend and frontend were built in parallel against shared contracts. The independent 53-case holdout review and Claude's final integration review were completed and their material fixes integrated. See the [implementation review](reviews/2026-11-03-implementation-review.md) and [holdout results](handoffs/holdout-report.md).
+- The 86 local tests, Deno and frontend type checks, and Next.js production build pass. CodeGraph is initialized and healthy.
+- The desktop browser walkthrough passed locally with a seeded change request, clean self-check, revision comparison, and approval. Mobile browser verification and manual verification of the new submission date picker remain open.
+- Hosted testing caught a JSONB serialization difference between PGlite and Neon. Explicit text-to-JSONB casts fixed it. A later parallel seeding attempt returned HTTP 500, so the release uses sequential seeding.
+- The full hosted smoke run passed on Deno Deploy revision `03gmk0t4mxa8` through Vercel and Neon. It covered new submissions, blocked approval, change requests, revisions, approval, stale-revision conflicts, persistence, and workspace isolation. Initial demo workspace creation took 13.5 seconds in the smoke run.
+- Vercel has both custom domain names attached. Porkbun's authoritative DNS responds with Vercel addresses, while the `.xyz` registry still returns NXDOMAIN. Custom-domain DNS and TLS verification remain pending. Use the [Vercel demo](https://clearpath-review-psi.vercel.app) in the meantime.
+
+See the [implementation plan](superpowers/plans/2026-11-03-clearpath.md) and [deployment notes](deployment.md).
