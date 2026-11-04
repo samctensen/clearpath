@@ -52,3 +52,30 @@ Deno.test("return scrolling tracks the saved row despite layout changes and fall
   assert.equal(queueReturnScroll(saved), 513);
   assert.equal(queueReturnScroll(saved, 100), 0);
 });
+
+Deno.test("returning to a reason-filtered queue preserves membership, page and row geometry", () => {
+  const saved = { ...context(), role: "submitter" as const, filters: { ...defaultDashboardFilters, view: "needs_attention" as const, reason: "missing:review-context", product: "card" as const } };
+  const entries = new Map<string, string>();
+  const storage = { getItem: (key: string) => entries.get(key) ?? null, setItem: (key: string, value: string) => { entries.set(key, value); } };
+  writeQueueContext(saved, storage);
+  const restored = readQueueContext("submitter", storage);
+  assert.deepEqual(restored, saved);
+  // The new chart can change the hero's height; the opened row retains its viewport position.
+  assert.equal(queueReturnScroll(restored!.returnTo!, 740), 459);
+  assert.equal(queueReturnScroll(restored!.returnTo!), 513);
+});
+
+Deno.test("obsolete or incompatible saved reasons discard their old page and return position", () => {
+  for (const [role, view, reason] of [
+    ["submitter", "needs_attention", "missing:retired-rule"],
+    ["submitter", "all", "other_feedback"],
+    ["submitter", "approved", "request:offer-match"],
+    ["reviewer", "needs_attention", "other_feedback"],
+  ] as const) {
+    const restored = parseQueueContext({ ...context(), role, filters: { ...defaultDashboardFilters, view, reason } }, role);
+    assert.deepEqual(restored?.filters, { ...defaultDashboardFilters, view: role === "reviewer" ? "all" : view, reason: null });
+    assert.deepEqual(restored?.position, { after: null, before: null });
+    assert.equal(restored?.pageStartCursor, null);
+    assert.equal(restored?.returnTo, null);
+  }
+});

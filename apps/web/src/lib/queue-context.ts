@@ -1,5 +1,5 @@
 import { dashboardQuerySchema, type DemoRole, type QueueCohortItem } from "@clearpath/contracts";
-import { compareCases, parseDashboardFilters, type DashboardFilters, type QueuePosition } from "./dashboard.ts";
+import { compareCases, firstQueuePage, parseDashboardFilters, type DashboardFilters, type QueuePosition } from "./dashboard.ts";
 
 export type QueueReturn = { scrollY: number; anchorId: string | null; anchorTop: number };
 export type QueueContext = {
@@ -22,10 +22,14 @@ export function parseQueueContext(value: unknown, role: DemoRole): QueueContext 
   const saved = value.returnTo;
   const returnTo = object(saved) && typeof saved.scrollY === "number" && Number.isFinite(saved.scrollY) && saved.scrollY >= 0 && typeof saved.anchorTop === "number" && Number.isFinite(saved.anchorTop)
     ? { scrollY: saved.scrollY, anchorId: identity(saved.anchorId), anchorTop: saved.anchorTop } : null;
+  const filters = parseDashboardFilters(value.filters, role);
+  // A cursor and anchor from a removed reason describe a different result set.
+  const droppedReason = object(value.filters) && value.filters.reason != null && value.filters.reason !== filters.reason;
   return {
-    version: 1, role, filters: parseDashboardFilters(value.filters, role),
-    position: { after: position.after, before: position.before }, pageStartCursor,
-    selectedId: identity(value.selectedId), openedCaseId: identity(value.openedCaseId), returnTo,
+    version: 1, role, filters,
+    position: droppedReason ? { ...firstQueuePage } : { after: position.after, before: position.before },
+    pageStartCursor: droppedReason ? null : pageStartCursor,
+    selectedId: identity(value.selectedId), openedCaseId: identity(value.openedCaseId), returnTo: droppedReason ? null : returnTo,
   };
 }
 export function readQueueContext(role: DemoRole, storage?: QueueStorage): QueueContext | null {

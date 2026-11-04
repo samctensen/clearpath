@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   DashboardOverview,
   DashboardResponse,
-  DashboardRow,
+  FixPatternSummary,
   DemoRole,
   QueueCohortItem,
   QueuePage,
@@ -19,7 +19,7 @@ type QueryState = {
   failure: { requestKey: string; message: string } | null;
   cohort: Held<QueueCohortItem[]>;
   overview: Held<DashboardOverview>;
-  attention: Held<DashboardRow[]>;
+  fixPatterns: Held<FixPatternSummary>;
 };
 
 const emptyPage: QueuePage = {
@@ -34,8 +34,8 @@ const emptyPage: QueuePage = {
 
 /**
  * Never expose rows for a different query; retain only the still-valid map/overview.
- * Walking to another page asks the API for rows alone, since the chart and the counts
- * cover the whole cohort and cannot change while only the cursor moves.
+ * Table-only changes ask the API for rows alone, since chart and counts cover the
+ * search/product cohort. Mutations explicitly invalidate every held summary.
  */
 export function useDashboard(
   filters: DashboardFilters,
@@ -50,18 +50,17 @@ export function useDashboard(
     failure: null,
     cohort: null,
     overview: null,
-    attention: null,
+    fixPatterns: null,
   });
   const previousSearch = useRef<string | null>(null);
   const chosenScope = useRef<{ key: string; scope: "full" | "page" } | null>(null);
 
-  const { cohortKey, overviewKey } = dashboardRequest(filters, role, today, position);
-  const paging = position.after !== null || position.before !== null;
-  const held = state.cohort?.key === cohortKey && state.overview?.key === overviewKey && (role !== "submitter" || state.attention?.key === overviewKey);
-  // Pin the scope per position, so answering a request can never change the next URL.
-  const scopeKey = JSON.stringify([cohortKey, overviewKey, position, attempt]);
+  const { path: fullPath, cohortKey, overviewKey } = dashboardRequest(filters, role, today, position);
+  const held = state.cohort?.key === cohortKey && state.overview?.key === overviewKey && (role !== "submitter" || state.fixPatterns?.key === overviewKey);
+  // Pin scope per query, so answering a full request cannot change its own URL.
+  const scopeKey = JSON.stringify([fullPath, attempt]);
   if (chosenScope.current?.key !== scopeKey) {
-    chosenScope.current = { key: scopeKey, scope: paging && held ? "page" : "full" };
+    chosenScope.current = { key: scopeKey, scope: held ? "page" : "full" };
   }
   const { path } = dashboardRequest(filters, role, today, position, chosenScope.current.scope);
   const requestKey = `${attempt}:${path}`;
@@ -81,7 +80,7 @@ export function useDashboard(
             failure: null,
             cohort: data.cohort ? { key: cohortKey, value: data.cohort } : current.cohort,
             overview: data.overview ? { key: overviewKey, value: data.overview } : current.overview,
-            attention: data.submitterAttention ? { key: overviewKey, value: data.submitterAttention } : current.attention,
+            fixPatterns: data.fixPatterns ? { key: overviewKey, value: data.fixPatterns } : current.fixPatterns,
           }));
         })
         .catch((error: unknown) => {
@@ -108,12 +107,11 @@ export function useDashboard(
     hadReviewAction: Boolean(state.overview?.value.actionable.length),
     cohort: enabled && state.cohort?.key === cohortKey ? state.cohort.value : null,
     overview: enabled && state.overview?.key === overviewKey ? state.overview.value : null,
-    attention: enabled && state.attention?.key === overviewKey ? state.attention.value : null,
-    refreshGeneration: attempt,
+    fixPatterns: enabled && state.fixPatterns?.key === overviewKey ? state.fixPatterns.value : null,
     loading: !current && !error,
     error,
     reload: () => {
-      setState(current => ({ ...current, cohort: null, overview: null, attention: null }));
+      setState(current => ({ ...current, cohort: null, overview: null, fixPatterns: null }));
       setAttempt(value => value + 1);
     },
   };

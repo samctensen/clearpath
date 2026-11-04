@@ -1,9 +1,10 @@
-import type { CaseStatus, CaseSummary, DemoRole, ProductId, QueueCohortItem, SubmitterView } from "@clearpath/contracts";
+import { isFixReasonId, type CaseStatus, type CaseSummary, type DemoRole, type ProductId, type QueueCohortItem, type SubmitterView } from "@clearpath/contracts";
 
 export type DashboardStatus = CaseStatus | "all";
 export type DashboardFilters = {
   status: DashboardStatus;
   view: SubmitterView;
+  reason: string | null;
   product: ProductId | "all";
   search: string;
   sort: "asc" | "desc";
@@ -19,6 +20,7 @@ export const dashboardStatuses: CaseStatus[] = [
 export const defaultDashboardFilters: DashboardFilters = {
   status: "all",
   view: "all",
+  reason: null,
   product: "all",
   search: "",
   sort: "asc",
@@ -33,11 +35,13 @@ export function parseDashboardFilters(value: unknown, role: DemoRole = "reviewer
     return { ...defaultDashboardFilters };
   }
   const saved = value as Record<string, unknown>;
+  const view = role === "submitter" && ["all", "needs_attention", "awaiting_review", "approved"].includes(String(saved.view)) ? saved.view as SubmitterView : "all";
   return {
     status: role === "submitter" ? "all" : saved.status === "all" || dashboardStatuses.includes(saved.status as CaseStatus)
       ? saved.status as DashboardStatus
       : defaultDashboardFilters.status,
-    view: role === "submitter" && ["all", "needs_attention", "awaiting_review", "approved"].includes(String(saved.view)) ? saved.view as SubmitterView : "all",
+    view,
+    reason: role === "submitter" && view === "needs_attention" && isFixReasonId(saved.reason) ? saved.reason : null,
     product: saved.product === "all" || dashboardProducts.includes(saved.product as ProductId)
       ? saved.product as DashboardFilters["product"]
       : defaultDashboardFilters.product,
@@ -77,6 +81,7 @@ export function dashboardRequest(
     limit: String(queuePageSize),
     scope,
   });
+  if (role === "submitter" && filters.view === "needs_attention" && isFixReasonId(filters.reason)) params.set("reason", filters.reason);
   if (position.after) params.set("after", position.after);
   if (position.before) params.set("before", position.before);
   const cohortKey = JSON.stringify([q, filters.product]);

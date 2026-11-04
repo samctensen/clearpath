@@ -36,7 +36,7 @@ function submission(id: string, overrides: Partial<CaseSummary> = {}): CaseSumma
 const ids = (cases: CaseSummary[]) => cases.map((item) => item.id);
 
 Deno.test("dashboard requests encode literal searches and send sorting to the API", () => {
-  const request = dashboardRequest({ status: "approved", view: "all", product: "card", search: "  50% + A&B_  ", sort: "desc" }, "submitter", "2026-11-04");
+  const request = dashboardRequest({ status: "approved", view: "all", reason: null, product: "card", search: "  50% + A&B_  ", sort: "desc" }, "submitter", "2026-11-04");
   const url = new URL(request.path, "http://clearpath.test");
   assertEquals(url.pathname, "/dashboard");
   const query: Record<string, string> = {};
@@ -295,7 +295,7 @@ Deno.test("creation ties use timestamps and put missing or impossible creation d
 });
 
 Deno.test("invalid restored filters fall back field by field without losing valid choices", () => {
-  const defaults = { status: "all", view: "all", product: "all", search: "", sort: "asc" };
+  const defaults = { status: "all", view: "all", reason: null, product: "all", search: "", sort: "asc" };
   for (const invalid of [null, undefined, false, 7, "all", [], ["approved"]]) {
     assertEquals(parseDashboardFilters(invalid), defaults);
   }
@@ -315,7 +315,7 @@ Deno.test("invalid restored filters fall back field by field without losing vali
       search: " Name ",
       sort: "desc",
     }),
-    { status: "needs_information", view: "all", product: "unknown", search: " Name ", sort: "desc" },
+    { status: "needs_information", view: "all", reason: null, product: "unknown", search: " Name ", sort: "desc" },
   );
   assertEquals(
     parseDashboardFilters({
@@ -324,7 +324,7 @@ Deno.test("invalid restored filters fall back field by field without losing vali
       search: "Northstar",
       sort: false,
     }),
-    { status: "approved", view: "all", product: "all", search: "Northstar", sort: "asc" },
+    { status: "approved", view: "all", reason: null, product: "all", search: "Northstar", sort: "asc" },
   );
 });
 
@@ -367,4 +367,42 @@ Deno.test("role filter storage is independent and legacy filters cannot hide sub
   assertEquals(parseDashboardFilters({ status: "approved", view: "needs_attention" }, "submitter").status, "all");
   assertEquals(parseDashboardFilters({ view: "needs_attention" }, "reviewer").view, "all");
   assertEquals(parseDashboardFilters({ status: "approved" }, "submitter").view, "all");
+});
+
+Deno.test("submitter reasons survive parsing only in the attention view", () => {
+  const base = { status: "all", view: "needs_attention", reason: "missing:review-context", product: "card", search: "Campaign", sort: "asc" };
+  assertEquals(parseDashboardFilters(base, "submitter"), base);
+  for (const reason of ["missing:unknown-rule", "request:invented", "other_feedback ", "", 1, null]) {
+    assertEquals(parseDashboardFilters({ ...base, reason }, "submitter"), { ...base, reason: null });
+  }
+  for (const view of ["all", "awaiting_review", "approved"]) {
+    assertEquals(parseDashboardFilters({ ...base, view }, "submitter"), { ...base, view, reason: null });
+  }
+  assertEquals(parseDashboardFilters(base, "reviewer"), { ...base, view: "all", reason: null });
+  assertEquals(parseDashboardFilters({ ...base, reason: "other_feedback" }, "submitter"), { ...base, reason: "other_feedback" });
+  assertEquals(parseDashboardFilters({ ...base, reason: "details_unavailable" }, "submitter"), { ...base, reason: "details_unavailable" });
+});
+
+Deno.test("reason filters travel to the server without changing the held summary scope", () => {
+  const filters = parseDashboardFilters({ view: "needs_attention", reason: "request:offer-match", search: "Publisher", product: "card", sort: "desc" }, "submitter");
+  const base = dashboardRequest({ ...defaultDashboardFilters, search: "Publisher", product: "card" }, "submitter", "2026-11-04");
+  const filtered = dashboardRequest(filters, "submitter", "2026-11-04", { after: "page-two", before: null }, "page");
+  const query = new URL(filtered.path, "http://clearpath.test").searchParams;
+  assertEquals(query.get("reason"), "request:offer-match");
+  assertEquals(query.get("view"), "needs_attention");
+  assertEquals(query.get("status"), "all");
+  assertEquals(query.get("after"), "page-two");
+  assertEquals(query.get("scope"), "page");
+  assertEquals(filtered.cohortKey, base.cohortKey);
+  assertEquals(filtered.overviewKey, base.overviewKey);
+  const invalid = dashboardRequest({ ...filters, reason: "request:invented" }, "submitter", "2026-11-04");
+  assertEquals(new URL(invalid.path, "http://clearpath.test").searchParams.get("reason"), null);
+  const changedProduct = dashboardRequest({ ...filters, product: "mortgage" }, "submitter", "2026-11-04");
+  assertEquals(changedProduct.overviewKey === filtered.overviewKey, false);
+  const changedSearch = dashboardRequest({ ...filters, search: "Other publisher" }, "submitter", "2026-11-04");
+  assertEquals(changedSearch.overviewKey === filtered.overviewKey, false);
+  for (const [role, view] of [["reviewer", "needs_attention"], ["submitter", "all"], ["submitter", "approved"], ["submitter", "awaiting_review"]] as const) {
+    const request = dashboardRequest({ ...filters, view }, role, "2026-11-04");
+    assertEquals(new URL(request.path, "http://clearpath.test").searchParams.get("reason"), null);
+  }
 });
