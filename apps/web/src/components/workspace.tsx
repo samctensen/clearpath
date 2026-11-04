@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronRight, ClipboardList, FlaskConical, ShieldCheck } from "lucide-react";
 import type { DemoRole } from "@clearpath/contracts";
+import { DashboardShell } from "./dashboard/dashboard-shell";
 
 const roleKey = "clearpath-demo-role";
 const RoleContext = createContext<DemoRole>("reviewer");
@@ -32,6 +33,7 @@ export function Workspace({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider value={role}>
+      {path === "/" ? <DashboardShell role={role} onRoleChange={changeRole}>{children}</DashboardShell> : (
       <div className="workspace">
         <a className="skip-link" href="#main">Skip to content</a>
         <aside className="sidebar">
@@ -68,6 +70,7 @@ export function Workspace({ children }: { children: ReactNode }) {
           <main id="main" className="main-content">{children}</main>
         </div>
       </div>
+      )}
     </RoleContext.Provider>
   );
 }
