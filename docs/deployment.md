@@ -1,5 +1,6 @@
 # Deployment
 
+- [ClearPath demo](https://clearpathfinancial.xyz)
 - [Web fallback on Vercel](https://clearpath-review-psi.vercel.app)
 - [Deno Deploy API health](https://clearpath-api.samctensen.deno.net/api/health)
 - Vercel project `clearpath-review` in team `sam-christensens-projects-78648ebe`
@@ -16,11 +17,13 @@ Set `NODE_ENV=production`, `HOST=0.0.0.0`, and `WEB_ORIGIN=https://clearpathfina
 
 ## Custom domain
 
-Vercel has `clearpathfinancial.xyz` and `www.clearpathfinancial.xyz` attached, with `www` configured to redirect to the apex using HTTP 308. Porkbun has an apex ALIAS and a `www` CNAME pointing to `3ff9121296dae5db.vercel-dns-017.com`, both with a 600-second TTL. The saved records return Vercel addresses from Porkbun's authoritative servers. Registry RDAP confirms registration at 2026-11-04 03:42:56 UTC, the four Porkbun nameservers, and no client/server DNS hold. The `.xyz` registry DNS still returns NXDOMAIN. DNS and TLS verification for the custom domain are pending, so use the Vercel fallback above.
+Vercel has `clearpathfinancial.xyz` and `www.clearpathfinancial.xyz` attached. Porkbun has an apex ALIAS and a `www` CNAME pointing to `3ff9121296dae5db.vercel-dns-017.com`, both with a 600-second TTL. Public DNS now resolves correctly. After DNS propagation completed, a Vercel TLS certificate covering both names was issued with automatic renewal enabled. Verified HTTPS returns 200 at the apex; HTTP and HTTPS `www` requests redirect to `https://clearpathfinancial.xyz/` using HTTP 308.
 
 ## Hosted verification
 
 The hosted smoke test passed through the Vercel proxy against Neon on API revision `03gmk0t4mxa8`. It covered a new submission, blocked approval, a change request, revision, approval, stale-revision conflict, persistence, and workspace isolation. Initial demo workspace creation took 13.5 seconds in this run. The release uses sequential seeding after a parallel seeding attempt returned HTTP 500.
+
+After the certificate was issued, the same full workflow passed at `https://clearpathfinancial.xyz`, with a fresh workspace initialized in 11.4 seconds. The browser also loaded all six seeded cases through that HTTPS address.
 
 A subsequent Brave browser check at 390 × 844 verified the queue, new-submission form, and review page. A newly entered launch date persisted, an unseen 18-month card promotion produced the expected mismatch, and approval remained disabled. The input was exercised through native segmented keyboard entry; the automation helper's date `fill` operation did not commit a value.
 

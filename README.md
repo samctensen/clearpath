@@ -2,7 +2,7 @@
 
 ClearPath is a copy-review workspace for financial marketing teams. Submitters can check a draft before sending it for review. Reviewers see the copy, the applicable offer terms, and evidence for each flagged concern in one place. Change requests, revisions, and decisions stay with the submission.
 
-[Open the hosted demo on Vercel](https://clearpath-review-psi.vercel.app) · [API health](https://clearpath-api.samctensen.deno.net/api/health)
+[Open the hosted demo](https://clearpathfinancial.xyz) · [API health](https://clearpathfinancial.xyz/api/health)
 
 The demo uses fictional offers and sample campaigns. The **Reviewer** and **Submitter** controls simulate both roles inside the same browser workspace. A signed cookie keeps each browser's workspace separate. Production authentication is outside the scope of this demo.
 
@@ -61,7 +61,7 @@ The release passed 86 local tests, both type checks, the production build, and t
 
 ## Deploy
 
-The hosted demo runs on Vercel, Deno Deploy, and Neon Postgres. Use the Vercel URL above while DNS and TLS for the custom domain settle. See [deployment notes](docs/deployment.md) for the current status, source bundle, and environment settings.
+The hosted demo runs on Vercel, Deno Deploy, and Neon Postgres at https://clearpathfinancial.xyz. HTTP and the `www` hostname redirect to the canonical HTTPS address. See [deployment notes](docs/deployment.md) for the source bundle and environment settings.
 
 Deploy the API using [Dockerfile.api](Dockerfile.api) with the repository root as the build context. Configure `DATABASE_URL` with a Neon Postgres connection string and run `npm run migrate` against that database before starting the API. Set `NODE_ENV=production`, a random `COOKIE_SECRET` of at least 32 characters, and `WEB_ORIGIN` to the exact allowed HTTPS web origins as a comma-separated list. The API binds to `0.0.0.0` by default in production. Override with `HOST` if needed. It uses the platform's `PORT` when present, then `API_PORT`, then 8000.
 

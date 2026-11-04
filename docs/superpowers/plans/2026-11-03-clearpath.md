@@ -53,5 +53,5 @@ Files: apps/web/src/*; handoff frontend.md.
 - [x] Integrate the independent 53-case holdout review and Claude's final integration review.
 - [x] Initialize CodeGraph, document local and hosted setup, and verify the local workflow.
 - [x] Deploy both apps and pass the hosted smoke test through the Vercel fallback on API revision `03gmk0t4mxa8`. Document the URLs and initial seeding latency in the [deployment notes](../../deployment.md).
-- [ ] Verify custom-domain DNS and TLS.
+- [x] Verify custom-domain DNS and TLS, including HTTP and `www` redirects to the canonical HTTPS apex.
 - [x] Push the reviewed release to `codex/clearpath-review-workbench` in the existing private repository.
