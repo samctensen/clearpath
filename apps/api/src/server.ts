@@ -48,6 +48,7 @@ const decisionSchema = z.object({
 });
 const revisionSchema = z.object({ expectedRevision: revision, input: submissionSchema });
 const aiReviewSchema = z.object({ expectedRevision: revision }).strict();
+const deleteSchema = z.object({ expectedRevision: revision }).strict();
 const aiReviewQuerySchema = z.object({
   revision: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(revision),
 });
@@ -169,7 +170,8 @@ export async function createApiServer(deps: Dependencies) {
     const summaries = checkEmpty && path === "/api/cases" ? await deps.store.listCases(workspace!) : undefined;
     const dashboard = checkEmpty && path === "/api/dashboard"
       ? await deps.store.dashboard(workspace!, (req as any).dashboardQuery) : undefined;
-    const recoverEmpty = summaries?.length === 0 || dashboard?.workspaceTotal === 0;
+    const noActiveCases = summaries?.length === 0 || dashboard?.workspaceTotal === 0;
+    const recoverEmpty = noActiveCases && !await deps.store.hasStoredCases(workspace!);
     if (summaries && !recoverEmpty) (req as any).summaries = summaries;
     if (dashboard && !recoverEmpty) (req as any).dashboard = dashboard;
     if (!exists || recoverEmpty) {
@@ -246,6 +248,11 @@ export async function createApiServer(deps: Dependencies) {
     "/api/cases/:id",
     async (req, reply) => send(reply, await deps.store.getCase(ws(req), caseId(req))),
   );
+  app.post("/api/cases/:id/delete", async (req, reply) => {
+    if (!submitter(req, reply)) return;
+    const body = parse(deleteSchema, req.body, reply);
+    if (body) return send(reply, await deps.store.deleteCase(ws(req), caseId(req), body.expectedRevision));
+  });
   app.get("/api/cases/:id/ai-review", async (req, reply) => {
     const query = parse(aiReviewQuerySchema, req.query, reply);
     if (!query) return;

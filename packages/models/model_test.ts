@@ -5,9 +5,9 @@ import type { Analysis, SubmissionInput } from "@clearpath/contracts";
 
 async function instrumentedStore() {
   const client = await PGlite.create("memory://");
-  await client.exec(
-    await Deno.readTextFile(new URL("./migrations/001_initial.sql", import.meta.url)),
-  );
+  for (const file of ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql"]) {
+    await client.exec(await Deno.readTextFile(new URL(`./migrations/${file}`, import.meta.url)));
+  }
   const state = { queries: 0, failAfter: 0 };
   type TestDb = ConstructorParameters<typeof Store>[0];
   const wrap = (c: any): TestDb => ({
@@ -155,6 +155,124 @@ Deno.test("concurrent decisions cannot create duplicate events", async () => {
   } finally {
     await store.close();
   }
+});
+
+Deno.test("deletion retains revision, review, and AI evidence while removing active access", async () => {
+  const { store, client } = await instrumentedStore();
+  try {
+    const workspace = await store.createWorkspace();
+    assert.equal(await store.hasStoredCases(workspace), false);
+    const created = await store.createCase(workspace, input, analysis);
+    assert.ok(created.ok);
+    const caseId = created.value.case.id;
+    assert.ok((await store.disposition(workspace, caseId, 1, "test", "confirmed", "Needs context")).ok);
+    assert.ok((await store.addManualFinding(workspace, caseId, 1, "Extra concern", "copy", "Check this")).ok);
+    assert.ok((await store.decide(workspace, caseId, 1, "request_changes", "Please revise")).ok);
+    assert.ok((await store.revise(workspace, caseId, 1, input, analysis)).ok);
+    const generated = {
+      content: {
+        compliance: { summary: "Review context", concerns: [], questions: [] },
+        marketing: { summary: "Clear copy", strengths: [], suggestions: [] },
+      },
+      model: "test-model",
+      promptVersion: "v1",
+    };
+    assert.ok((await store.saveAiReview(workspace, caseId, 2, generated)).ok);
+    const tables = ["revisions", "dispositions", "manual_findings", "decisions", "ai_reviews", "events"];
+    const before = await Promise.all(tables.map(async (table) =>
+      (await client.query(`SELECT * FROM ${table} WHERE case_id=$1`, [caseId])).rows
+    ));
+    assert.deepEqual(await store.deleteCase(workspace, caseId, 2), {
+      ok: true, value: { deleted: true, id: caseId },
+    });
+    const [deleted] = (await client.query<Record<string, unknown>>("SELECT deleted_at,status,revision FROM cases WHERE id=$1", [caseId])).rows;
+    assert.ok(deleted.deleted_at);
+    assert.equal(deleted.status, "ready_for_review");
+    assert.equal(deleted.revision, 2);
+    for (const [index, table] of tables.entries()) {
+      const after = (await client.query<Record<string, unknown>>(`SELECT * FROM ${table} WHERE case_id=$1`, [caseId])).rows;
+      assert.deepEqual(after.filter((row) => row.type !== "deleted"), before[index], table);
+      if (table === "events") {
+        const event = after.find((row) => row.type === "deleted");
+        assert.ok(event);
+        assert.equal(event.actor, "submitter");
+        assert.equal(event.revision, 2);
+        assert.equal(after.length, before[index].length + 1);
+      }
+    }
+    assert.equal(await store.hasStoredCases(workspace), true);
+    assert.deepEqual(await store.listCases(workspace), []);
+    for (const result of [
+      await store.getCase(workspace, caseId),
+      await store.getAiReview(workspace, caseId, 2),
+      await store.saveAiReview(workspace, caseId, 2, generated),
+      await store.deleteCase(workspace, caseId, 2),
+      await store.revise(workspace, caseId, 2, input, analysis),
+      await store.decide(workspace, caseId, 2, "request_changes", "Feedback"),
+    ]) {
+      assert.ok(!result.ok);
+      assert.equal(result.error.code, "not_found");
+    }
+  } finally { await store.close(); }
+});
+
+Deno.test("deletion rolls back if audit insertion fails and concurrent deletion records one event", async () => {
+  const { store, client, state } = await instrumentedStore();
+  try {
+    const workspace = await store.createWorkspace();
+    const created = await store.createCase(workspace, input, analysis);
+    assert.ok(created.ok);
+    const caseId = created.value.case.id;
+    state.failAfter = 3; // Lock succeeds, update succeeds, event insert fails.
+    const failed = await store.deleteCase(workspace, caseId, 1);
+    assert.ok(!failed.ok);
+    assert.equal(failed.error.code, "storage");
+    assert.ok((await store.getCase(workspace, caseId)).ok);
+    const outcomes = await Promise.all([
+      store.deleteCase(workspace, caseId, 1), store.deleteCase(workspace, caseId, 1),
+    ]);
+    assert.equal(outcomes.filter((result) => result.ok).length, 1);
+    assert.equal(outcomes.filter((result) => !result.ok && result.error.code === "not_found").length, 1);
+    const events = await client.query("SELECT id FROM events WHERE case_id=$1 AND type='deleted'", [caseId]);
+    assert.equal(events.rows.length, 1);
+  } finally { await store.close(); }
+});
+
+Deno.test("deletion serializes with approval and revision under the same case lock", async () => {
+  const store = await createTestStore();
+  try {
+    const workspace = await store.createWorkspace();
+    const clean = { ...analysis, checks: [] };
+    for (const action of ["approve", "revise"] as const) {
+      for (const deleteFirst of [true, false]) {
+        const created = await store.createCase(workspace, input, clean);
+        assert.ok(created.ok);
+        const caseId = created.value.case.id;
+        const mutate = () => action === "approve"
+          ? store.decide(workspace, caseId, 1, "approve", "Reviewed")
+          : store.revise(workspace, caseId, 1, input, clean);
+        const remove = () => store.deleteCase(workspace, caseId, 1);
+        const outcomes = await Promise.all(deleteFirst ? [remove(), mutate()] : [mutate(), remove()]);
+        assert.equal(outcomes.filter((result) => result.ok).length, 1);
+        const deletion = outcomes[deleteFirst ? 0 : 1];
+        const mutation = outcomes[deleteFirst ? 1 : 0];
+        if (deletion.ok) {
+          assert.ok(!mutation.ok);
+          assert.equal(mutation.error.code, "not_found");
+          assert.deepEqual(await store.getCase(workspace, caseId), {
+            ok: false, error: { code: "not_found", message: "Case not found" },
+          });
+        } else {
+          assert.ok(mutation.ok);
+          assert.equal(deletion.error.code, action === "approve" ? "blocked" : "conflict");
+          const current = await store.getCase(workspace, caseId);
+          assert.ok(current.ok);
+          assert.equal(current.value.case.status, action === "approve" ? "approved" : "ready_for_review");
+          assert.equal(current.value.case.revision, action === "approve" ? 1 : 2);
+        }
+      }
+    }
+  } finally { await store.close(); }
 });
 
 Deno.test("queue lists current summaries in one query, ordered and workspace scoped", async () => {

@@ -26,6 +26,7 @@ const activityLabels = {
   finding_resolved: "Manual concern resolved",
   changes_requested: "Changes requested",
   approved: "Copy approved",
+  deleted: "Submission deleted",
 };
 
 function isConcern(check: CheckResult) {
@@ -54,6 +55,7 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
   const [actionError, setActionError] = useState<{ message: string; conflict: boolean } | null>(null);
   const [activeExcerpt, setActiveExcerpt] = useState("");
   const mutationInFlight = useRef(false);
+  const revisionIntentConsumed = useRef(false);
   const actionNotice = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const evidenceRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,19 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
   const unresolved = concerns.filter((check) => dispositions.get(check.ruleId)?.action !== "dismissed").length;
   const canRequest = openManual > 0 || concerns.some((check) => dispositions.get(check.ruleId)?.action === "confirmed");
   const marked = excerptRanges(revision);
+
+  useEffect(() => {
+    if (role !== "submitter") {
+      setEditing(false);
+      return;
+    }
+    if (!revisionIntentConsumed.current && new URLSearchParams(window.location.search).get("intent") === "revise") {
+      revisionIntentConsumed.current = true;
+      setSelected(null);
+      setComparing(false);
+      setEditing(true);
+    }
+  }, [role]);
 
   async function mutate(suffix: string, body: object) {
     if (mutationInFlight.current) return false;
@@ -133,7 +148,7 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
         <div className={styles.headingContext}><CaseStatusBadge status={detail.case.status} /><span>Current revision {current.number}</span></div>
       </PageHeader>
 
-      {editing ? (
+      {editing && role === "submitter" && isCurrent ? (
         <RevisionEditor
           path={path}
           revision={current}

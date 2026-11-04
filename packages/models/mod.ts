@@ -9,6 +9,7 @@ import {
   type CaseSummary,
   type DashboardQuery,
   type DashboardResponse,
+  type DeleteCaseResult,
   failure,
   type Result,
   type SubmissionInput,
@@ -31,7 +32,7 @@ type DB = {
   transaction<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 };
-const migrations = ["001_initial.sql", "002_ai_reviews.sql"];
+const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql"];
 class AiReviewBudgetExceeded extends Error {}
 const id = () => crypto.randomUUID();
 const iso = (date: unknown) => new Date(date as string).toISOString();
@@ -262,6 +263,11 @@ export class Store {
   async hasWorkspace(workspace: string) {
     return (await this.db.query("SELECT id FROM workspaces WHERE id=$1", [workspace])).length > 0;
   }
+  async hasStoredCases(workspace: string) {
+    // Include deleted cases: an intentionally emptied workspace must never be reseeded.
+    return (await this.db.query("SELECT id FROM cases WHERE workspace_id=$1 LIMIT 1", [workspace]))
+      .length > 0;
+  }
   private async event(
     db: DB,
     caseId: string,
@@ -276,7 +282,7 @@ export class Store {
     );
   }
   private async detail(db: DB, workspace: string, caseId: string): Promise<Result<CaseDetail>> {
-    const [c] = await db.query("SELECT * FROM cases WHERE id=$1 AND workspace_id=$2", [
+    const [c] = await db.query("SELECT * FROM cases WHERE id=$1 AND workspace_id=$2 AND deleted_at IS NULL", [
       caseId,
       workspace,
     ]);
@@ -372,7 +378,7 @@ export class Store {
         `SELECT a.* FROM cases c
          JOIN revisions r ON r.case_id=c.id AND r.number=$3
          LEFT JOIN ai_reviews a ON a.case_id=r.case_id AND a.revision=r.number
-         WHERE c.id=$1 AND c.workspace_id=$2`,
+         WHERE c.id=$1 AND c.workspace_id=$2 AND c.deleted_at IS NULL`,
         [caseId, workspace, revision],
       );
       if (!row) return failure("not_found", "Case or revision not found");
@@ -390,7 +396,7 @@ export class Store {
     return await this.db.transaction(async (db) => {
       // Share the edit lock, but never hold it while the provider is running.
       const [current] = await db.query(
-        "SELECT revision FROM cases WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
+        "SELECT revision FROM cases WHERE id=$1 AND workspace_id=$2 AND deleted_at IS NULL FOR UPDATE",
         [caseId, workspace],
       );
       if (!current) return failure<AiReview>("not_found", "Case not found");
@@ -465,7 +471,7 @@ export class Store {
         (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
         (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
       FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
-      WHERE c.workspace_id = $1 ORDER BY c.updated_at DESC, c.id`,
+      WHERE c.workspace_id = $1 AND c.deleted_at IS NULL ORDER BY c.updated_at DESC, c.id`,
       [workspace],
     );
     return rows.map((row) => ({
@@ -494,7 +500,7 @@ export class Store {
           r.input->>'publisher' AS publisher, r.input->>'format' AS format,
           r.input->>'launchDate' AS launch_date, r.analysis
         FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
-        WHERE c.workspace_id = $1
+        WHERE c.workspace_id = $1 AND c.deleted_at IS NULL
           AND ($2 = '' OR strpos(lower((r.input->>'title') || ' ' || (r.input->>'publisher')), lower($2)) > 0)
           AND ($3 = 'all' OR r.input->>'productId' = $3)
       ), cohort AS MATERIALIZED (
@@ -511,7 +517,7 @@ export class Store {
           (SELECT count(*) FROM jsonb_array_elements(analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
         FROM matching
       )
-      SELECT (SELECT count(*) FROM cases WHERE workspace_id = $1) AS workspace_total,
+      SELECT (SELECT count(*) FROM cases WHERE workspace_id = $1 AND deleted_at IS NULL) AS workspace_total,
         COALESCE((SELECT jsonb_agg(to_jsonb(cohort) ORDER BY calendar_day ASC NULLS LAST, created_at ASC, id ASC) FROM cohort), '[]'::jsonb) AS cohort,
         COALESCE((SELECT array_agg(id ORDER BY ${orderColumn} ${direction} NULLS LAST, created_at ASC, id ASC)
           FROM cohort WHERE $4 = 'all' OR status = $4), ARRAY[]::text[]) AS row_ids`,
@@ -576,7 +582,7 @@ export class Store {
   ): Promise<Result<CaseDetail>> {
     return await this.db.transaction(async (db) => {
       const rows = await db.query(
-        "SELECT id,revision FROM cases WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
+        "SELECT id,revision FROM cases WHERE id=$1 AND workspace_id=$2 AND deleted_at IS NULL FOR UPDATE",
         [caseId, workspace],
       );
       if (!rows.length) return failure("not_found", "Case not found");
@@ -588,6 +594,38 @@ export class Store {
       await db.query("UPDATE cases SET updated_at=now() WHERE id=$1", [caseId]);
       return await this.detail(db, workspace, caseId);
     }).catch(() => failure<CaseDetail>("storage", "Unable to access storage"));
+  }
+  async deleteCase(
+    workspace: string,
+    caseId: string,
+    expected: number,
+  ): Promise<Result<DeleteCaseResult>> {
+    return await this.db.transaction(async (db) => {
+      const [current] = await db.query(
+        "SELECT revision,status FROM cases WHERE id=$1 AND workspace_id=$2 AND deleted_at IS NULL FOR UPDATE",
+        [caseId, workspace],
+      );
+      if (!current) return failure<DeleteCaseResult>("not_found", "Case not found");
+      if (current.revision !== expected) {
+        return failure<DeleteCaseResult>("conflict", "Revision has changed");
+      }
+      if (!["ready_for_review", "needs_information", "changes_requested"].includes(current.status)) {
+        return failure<DeleteCaseResult>(
+          "blocked",
+          "Approved submissions cannot be deleted. Submit a revision first.",
+        );
+      }
+      await db.query("UPDATE cases SET deleted_at=now(),updated_at=now() WHERE id=$1", [caseId]);
+      await this.event(
+        db,
+        caseId,
+        "deleted",
+        "submitter",
+        "Deleted submission from the active queue; review history retained",
+        expected,
+      );
+      return success<DeleteCaseResult>({ deleted: true, id: caseId });
+    }).catch(() => failure<DeleteCaseResult>("storage", "Unable to access storage"));
   }
   revise(
     workspace: string,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId } from "@clearpath/contracts";
 import { useDashboard } from "@/lib/use-dashboard";
@@ -12,6 +12,8 @@ import { ReviewMap } from "./dashboard/review-map";
 import { QueueRowsLoading, ReviewMapLoading, UpNextLoading } from "./dashboard/dashboard-loading";
 import { CustomSelect } from "./ui/custom-select";
 import { QueueRowActions } from "./dashboard/queue-row-actions";
+import { QueueActionDialog, type QueueAction } from "./dashboard/queue-action-dialog";
+import actionStyles from "./dashboard/queue-row-actions.module.css";
 import styles from "./dashboard/review-dashboard.module.css";
 
 const filtersKey = "clearpath-dashboard-filters-v1";
@@ -40,6 +42,22 @@ export function ReviewQueue() {
   const [restored, setRestored] = useState(false);
   const [today, setToday] = useState("");
   const resource = useDashboard(filters, role, today, restored && Boolean(today));
+  const queueHeading = useRef<HTMLHeadingElement>(null);
+  const [action, setAction] = useState<{ kind: QueueAction; caseId: string; title: string; trigger: HTMLButtonElement | null; role: typeof role } | null>(null);
+  const [actionNotice, setActionNotice] = useState("");
+
+  function closeAction() {
+    const target = action?.trigger;
+    setAction(null);
+    if (target?.isConnected) target.focus({ preventScroll: true });
+    else queueHeading.current?.focus({ preventScroll: true });
+  }
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timer = window.setTimeout(() => setActionNotice(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [actionNotice]);
 
   useEffect(() => {
     try { setFilters(parseDashboardFilters(JSON.parse(sessionStorage.getItem(filtersKey) ?? "null"))); } catch { /* Storage is optional. */ }
@@ -93,7 +111,7 @@ export function ReviewQueue() {
       {scoped && <p className={styles.cohortNote}>Chart and queue reflect your search and product filters.</p>}
 
       <section id="submissions" className={styles.queue} aria-labelledby="queue-title" aria-busy={loading}>
-        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title">{role === "reviewer" ? "Review queue" : "Your submissions"}</h2>{!loading && !failed && <span>{rows.length}</span>}</div><div className={styles.queueControls}>
+        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Your submissions"}</h2>{!loading && !failed && <span>{rows.length}</span>}</div><div className={styles.queueControls}>
           <CustomSelect className={styles.statusFilter} label="Filter queue by status" value={filters.status} options={statusOptions} onChange={status => update({ status: status as DashboardStatus })} />
           <button type="button" className={styles.sortButton} onClick={toggleSort} aria-label={filters.sort === "asc" ? "Sort latest target first" : "Sort earliest target first"}><Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={12} />Target date</button>
         </div></div>
@@ -106,11 +124,18 @@ export function ReviewQueue() {
             <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unknown</small>}</div></td>
             <td data-label="Target date" className={styles.date}>{targetLabel(item.launchDate)}</td>
             <td data-label="Status"><Status status={item.status} /></td>
-            <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} /></td>
+            <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} status={item.status} role={role} onAction={(kind, trigger) => { setActionNotice(""); setAction({ kind, caseId: item.id, title: item.title, trigger, role }); }} /></td>
           </tr>)}</tbody>}
         </table></div> : failed ? <div className={styles.empty}><Icon name="circle-exclamation" size={24} /><h3>Submissions are unavailable</h3><p>Try loading again to see the queue. Your filters are saved.</p></div> : <div className={styles.empty}><Icon name={workspaceTotal ? "magnifying-glass" : "file-lines"} size={27} /><h3>{workspaceTotal ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{workspaceTotal ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{workspaceTotal ? <button type="button" className={styles.secondary} onClick={() => setFilters({ ...defaultDashboardFilters })}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
         <footer className={styles.queueFooter}><span>{loading ? "Loading submissions…" : failed ? "Queue unavailable" : <>Showing {rows.length} of {cohort?.length ?? 0} {scoped ? "matching " : ""}submissions{scoped && ` · ${workspaceTotal} in workspace`}</>}</span>{(scoped || filters.status !== "all") && <button type="button" onClick={() => setFilters({ ...defaultDashboardFilters })}>Reset filters</button>}<span className={styles.checkNote}>Copy checks are automated findings, not all review concerns.</span></footer>
       </section>
+      {action && <QueueActionDialog key={`${action.caseId}:${action.kind}`} caseId={action.caseId} title={action.title} action={action.kind} role={action.role} currentRole={role} onClose={closeAction} onSuccess={message => {
+        setAction(null);
+        setActionNotice(message);
+        queueHeading.current?.focus({ preventScroll: true });
+        resource.reload();
+      }} />}
+      <div className={actionNotice ? actionStyles.notice : "sr-only"} role="status" aria-atomic="true">{actionNotice}</div>
       <footer className={styles.disclaimer}><Icon name="shield-check" size={14} /><p>Copy approval applies to one revision and does not clear an asset for publication.</p><span>Fictional demo</span></footer>
   </div>;
 }

@@ -123,7 +123,7 @@ Deno.test("AI budget shares the global cap between simultaneous workspaces", asy
 Deno.test("AI quota uses the database UTC day and storage failures roll back then propagate", async () => {
   const client = await PGlite.create("memory://");
   try {
-    for (const file of ["001_initial.sql", "002_ai_reviews.sql"]) {
+    for (const file of ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql"]) {
       await client.exec(await Deno.readTextFile(new URL(`./migrations/${file}`, import.meta.url)));
     }
     await client.exec("SET TIME ZONE 'Pacific/Honolulu'");
