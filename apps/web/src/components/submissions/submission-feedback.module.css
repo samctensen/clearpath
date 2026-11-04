@@ -1,0 +1,8 @@
+.feedback { padding: 20px; border: 1px solid var(--border, #393440); border-radius: 12px; background: var(--surface, #1c1921); margin-bottom: 20px; }
+.feedback h2 { margin: 0 0 14px; font-size: 1rem; }
+.feedback h3 { margin: 0 0 8px; font-size: .9rem; }
+.feedback p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry + .entry, .concerns { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border, #393440); }
+.concerns ul { padding-left: 20px; margin-bottom: 0; }
+.concerns li + li { margin-top: 14px; }
+.concerns blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid #9c80e8; overflow-wrap: anywhere; }

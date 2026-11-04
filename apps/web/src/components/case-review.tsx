@@ -12,6 +12,7 @@ import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { FindingActions, ManualConcerns, ReviewDecision } from "./review-actions";
 import { ReviewCoverage } from "./review-coverage";
 import { SubmissionForm } from "./submission-form";
+import { AutomatedMissingInformation, SubmissionFeedback } from "./submissions/submission-feedback";
 import { CaseStatusBadge, ErrorMessage, formatDate, formatTime } from "./ui";
 import { CustomSelect } from "./ui/custom-select";
 import { PageHeader } from "./ui/page-header";
@@ -34,15 +35,17 @@ function isConcern(check: CheckResult) {
 }
 
 export function CaseReview({ id, initialRevision = null }: { id: string; initialRevision?: number | null }) {
+  const role = useDemoRole();
+  const backLabel = role === "submitter" ? "Submissions" : "Review queue";
   const path = `/cases/${encodeURIComponent(id)}`;
   const resource = useResource<CaseDetail>(path);
   const missingRevision = resource.data && initialRevision !== null && !resource.data.revisions.some((revision) => revision.number === initialRevision);
 
   return (
     <div className={styles.casePage}>
-      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: "Review queue" }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className="button secondary" href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
+      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className="button secondary" href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
         <ReviewDesk detail={resource.data} path={path} onChange={resource.replace} onReload={resource.reload} initialRevision={initialRevision} />
-      ) : <><PageHeader title="Review submission" back={{ href: "/", label: "Review queue" }} /><ErrorMessage message={resource.error} retry={resource.reload} /></>}
+      ) : <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><ErrorMessage message={resource.error} retry={resource.reload} /></>}
     </div>
   );
 }
@@ -67,7 +70,6 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
   const isCurrent = revision === current;
   const isDecided = detail.case.status === "approved" || detail.case.status === "changes_requested";
   const canReview = role === "reviewer" && isCurrent && !isDecided;
-  const feedback = detail.events.findLast((event) => event.type === "changes_requested");
   const decision = detail.events.findLast((event) => event.revision === revision.number && (event.type === "approved" || event.type === "changes_requested"));
   const dispositions = new Map((isCurrent ? detail.dispositions : []).map((item) => [item.ruleId, item]));
   const concerns = revision.analysis.checks.filter(isConcern);
@@ -138,7 +140,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
       <PageHeader
         title={revision.input.title}
         description={revision.input.publisher}
-        back={{ href: "/", label: "Review queue" }}
+        back={{ href: "/", label: role === "submitter" ? "Submissions" : "Review queue" }}
         actions={<>
           {role === "submitter" && isCurrent && !editing && (
             <button type="button" className="button primary" disabled={pending} onClick={() => setEditing(true)}><DashboardIcon name="pen" size={15} />{detail.case.status === "changes_requested" ? "Revise submission" : "Edit copy"}</button>
@@ -146,15 +148,18 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
           {canReview && !editing && <a href="#decision" className="button secondary">Review decision<DashboardIcon name="arrow-right" size={15} /></a>}
         </>}
       >
-        <div className={styles.headingContext}><CaseStatusBadge status={detail.case.status} /><span>Current revision {current.number}</span></div>
+        <div className={styles.headingContext}>{role === "submitter" && detail.case.status === "ready_for_review" ? <span>Awaiting review</span> : <CaseStatusBadge status={detail.case.status} />}<span>Current revision {current.number}</span></div>
       </PageHeader>
+
+      {role === "submitter" && <SubmissionFeedback detail={detail} revisionNumber={revision.number} />}
+
+      {editing && role === "submitter" && isCurrent && detail.case.status === "needs_information" && <AutomatedMissingInformation revision={current} />}
 
       {editing && role === "submitter" && isCurrent ? (
         <RevisionEditor
           path={path}
           revision={current}
           wasApproved={detail.case.status === "approved"}
-          feedback={detail.case.status === "changes_requested" && feedback?.revision === current.number ? feedback.message : undefined}
           onCancel={() => setEditing(false)}
           onSaved={(updated) => {
             onChange(updated);
@@ -206,14 +211,11 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
             </div>
             <ReviewCoverage analysis={revision.analysis} onShowCheck={jumpToCheck} />
           </section>
-          {decision && (
+          {role === "reviewer" && decision && (
             <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-concern"}`}>
               <DashboardIcon name={decision.type === "approved" ? "circle-check" : "file-lines"} size={19} />
               <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong><p>{decision.message}</p></div>
             </div>
-          )}
-          {!decision && isCurrent && feedback && role === "submitter" && (
-            <div className="notice notice-concern"><DashboardIcon name="file-lines" size={19} /><div><strong>Feedback on revision {feedback.revision}</strong><p>{feedback.message}</p></div></div>
           )}
           {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}
           <div className="action-notice" ref={actionNotice}>
@@ -250,7 +252,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
             <div className={styles.evidenceRail} ref={evidenceRef}>
               <section className={styles.checks} aria-labelledby="copy-checks-title">
                 <div className={styles.checksHeading}>
-                  <div className={styles.sectionHeading}><DashboardIcon name="list-check" size={18} /><h2 id="copy-checks-title">Copy checks</h2></div>
+                  <div className={styles.sectionHeading}><DashboardIcon name="list-check" size={18} /><h2 id="copy-checks-title">{role === "submitter" ? "Automated suggestions" : "Copy checks"}</h2></div>
                   <span className={styles.concernCount}>{concernSummary}</span>
                 </div>
                 <p className={styles.checkScope}>Text-only checks. Visual and legal review are separate.</p>
@@ -280,11 +282,11 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
                   </div>
                 </details>
               </section>
-              {isCurrent && <div className={styles.manualSection}><ManualConcerns findings={detail.manualFindings} mutate={role === "reviewer" ? mutate : undefined} canAdd={canReview} pending={pending} /></div>}
+              {isCurrent && role === "reviewer" && <div className={styles.manualSection}><ManualConcerns findings={detail.manualFindings} mutate={role === "reviewer" ? mutate : undefined} canAdd={canReview} pending={pending} /></div>}
               {canReview && <div className={styles.decisionSection}><ReviewDecision key={current.id} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} pending={pending} /></div>}
             </div>
           </div>
-          <div className={styles.advisory}><AiReviewPanel
+          <details className={styles.advisory}><summary>AI second opinion <span>· Advisory only</span></summary><AiReviewPanel
             key={`${detail.case.id}:${revision.number}`}
             path={path}
             revision={revision}
@@ -294,7 +296,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
             findings={detail.manualFindings}
             onPromote={canReview ? (input) => mutate("/manual-findings", input) : undefined}
             onReload={onReload}
-          /></div>
+          /></details>
           <ActivityTimeline events={detail.events} />
         </>
       )}
@@ -326,8 +328,8 @@ function MatchingOffer({ offerId, version }: { offerId: string; version: string 
   return <div className={styles.offerSnapshot}><h3>{offer.name}</h3><OfferTerms offer={offer} /></div>;
 }
 
-function RevisionEditor({ path, revision, wasApproved, feedback, onCancel, onSaved }: {
-  path: string; revision: Revision; wasApproved: boolean; feedback?: string; onCancel: () => void; onSaved: (detail: CaseDetail) => void;
+function RevisionEditor({ path, revision, wasApproved, onCancel, onSaved }: {
+  path: string; revision: Revision; wasApproved: boolean; onCancel: () => void; onSaved: (detail: CaseDetail) => void;
 }) {
   const catalog = useResource<CatalogData>("/catalog");
   const [formReady, setFormReady] = useState(false);
@@ -337,7 +339,6 @@ function RevisionEditor({ path, revision, wasApproved, feedback, onCancel, onSav
   return (
     <>
       {wasApproved && <div className="notice"><DashboardIcon name="circle-info" size={18} /><div><strong>Editing approved copy</strong><p>Submitting creates revision {revision.number + 1} and sends it back for review.</p></div></div>}
-      {feedback && <div className="notice notice-concern"><DashboardIcon name="scroll" size={19} /><div><strong>Reviewer feedback</strong><p>{feedback}</p></div></div>}
       {!formReady ? <CaseLoading label="Loading revision form" /> : (
         <SubmissionForm
           initial={revision.input}

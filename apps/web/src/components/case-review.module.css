@@ -284,3 +284,6 @@
   .loadingContext > span, .loadingCopy > span, .loadingEvidence span { animation: none; }
   .meterSegment > span { transition: none; }
 }
+
+.advisory > summary { cursor: pointer; padding: 16px 20px; font-weight: 600; }
+.advisory > summary span { font-weight: 400; opacity: .75; }
