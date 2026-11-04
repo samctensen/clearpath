@@ -7,7 +7,7 @@ import { DashboardIcon } from "./dashboard-icon";
 import styles from "./dashboard-shell.module.css";
 
 const navItems = [
-  { href: "/", label: "Overview", icon: "grid-2", current: true },
+  { href: "/", label: "Review desk", icon: "grid-2", current: true },
   { href: "/#submissions", label: "Review queue", icon: "list-check", current: false },
   { href: "/catalog", label: "Offer library", icon: "book-open", current: false },
 ];
@@ -17,13 +17,14 @@ const roles: { value: DemoRole; label: string }[] = [
   { value: "submitter", label: "Submitter" },
 ];
 
+/** A path that turns once and lands on an arrow: submission → decision. */
 function Wordmark() {
   return (
-    <svg className={styles.mark} viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" focusable="false">
-      <rect x=".5" y=".5" width="31" height="31" rx="9" className={styles.markFrame} />
-      <path d="M22.6 11.4A8 8 0 1 0 22.6 20.6" className={styles.markRing} />
-      <path d="M17.5 16h6.5" className={styles.markTick} />
-      <circle cx="24" cy="16" r="1.6" className={styles.markDot} />
+    <svg className={styles.mark} viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+      <rect x=".5" y=".5" width="31" height="31" className={styles.markFrame} />
+      <path d="M7 23H15V9H23" className={styles.markPath} />
+      <path d="M20 5.6L24.4 9L20 12.4" className={styles.markHead} />
+      <rect x="5.5" y="21.5" width="3" height="3" className={styles.markStart} />
     </svg>
   );
 }
@@ -43,13 +44,12 @@ export function DashboardShell({ children, role, onRoleChange }: { children: Rea
         <nav className={styles.nav} aria-label="Workspace">
           {navItems.map((item) => (
             <Link key={item.label} href={item.href} className={styles.navLink} aria-current={item.current ? "page" : undefined}>
-              <DashboardIcon name={item.icon} size={16} className={styles.navIcon} />
+              <DashboardIcon name={item.icon} size={15} className={styles.navIcon} />
               <span>{item.label}</span>
             </Link>
           ))}
         </nav>
         <div className={styles.demo}>
-          <DashboardIcon name="flask" size={15} className={styles.demoIcon} />
           <p><strong>Demo workspace</strong><span>Fictional offers and copy</span></p>
         </div>
       </aside>
@@ -58,7 +58,7 @@ export function DashboardShell({ children, role, onRoleChange }: { children: Rea
           <p className={styles.context}>
             <span className={styles.contextName}>Demo workspace</span>
             <span className={styles.divider} aria-hidden="true">/</span>
-            <span className={styles.contextPage}>Overview</span>
+            <span className={styles.contextPage}>Review desk</span>
           </p>
           <div className={styles.roleControl} role="group" aria-label="Demo role">
             <span className={styles.roleLabel}>Demo role</span>

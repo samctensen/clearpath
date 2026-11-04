@@ -57,7 +57,7 @@ export function ReviewQueue() {
 
   return <div className={styles.dashboard}>
     <div className={styles.heading}>
-      <div><p className={styles.eyebrow}>YOUR WORKSPACE, AT A GLANCE</p><h1>Review overview<span>.</span></h1><p className={styles.intro}>Move good copy forward. Keep the details in view.</p></div>
+      <div><p className={styles.eyebrow}>CLEARPATH / MARKETING OPERATIONS</p><h1>Review desk<span>.</span></h1><p className={styles.intro}>Every submission. Every decision. In view.</p></div>
       <Link href="/new" className={styles.primary}><Icon name="plus" size={15} />New submission</Link>
     </div>
 
@@ -78,7 +78,7 @@ export function ReviewQueue() {
       </div>
 
       <div className={styles.overviewGrid}>
-        <ReviewPipeline counts={overview.counts} total={overview.total} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
+        <ReviewPipeline cases={cohort} today={today} counts={overview.counts} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
         <section className={styles.nextPanel} aria-labelledby="next-title">
           <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div><Icon name="arrow-up-right" size={17} /></div>
           <div className={styles.nextList}>
@@ -97,7 +97,7 @@ export function ReviewQueue() {
           <button type="button" className={styles.sortButton} onClick={toggleSort} aria-label={filters.sort === "asc" ? "Sort latest target first" : "Sort earliest target first"}><Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={12} />Target date</button>
         </div></div>
         {rows.length ? <div className={styles.tableWrap}><table className={styles.table}>
-          <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">Copy checks</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th></tr></thead>
+          <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">Copy checks</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th></tr></thead>
           <tbody>{rows.map(item => <tr key={item.id}>
             <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span><Icon name="arrow-up-right" size={13} className={styles.rowArrow} /></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
