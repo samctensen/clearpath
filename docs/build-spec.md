@@ -1,5 +1,7 @@
 # ClearPath first release
 
+> Historical implementation plan from November 3. Visual styling, shared-workspace behavior and deployment setup have since changed. Use [current shared state](handoffs/current-state.md) and [product thesis](product-thesis.md) for current decisions.
+
 Implementation authorized by Sam on November 3, 2026. User-selected architecture: **two deployable apps in one repository, Deno backend, Next.js frontend, Neon Postgres**. Atlas supplies familiar architectural patterns, not business code. Root owner integrates; workers own disjoint files.
 
 ## Product and design
