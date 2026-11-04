@@ -1,4 +1,4 @@
-.dashboard { min-width: 0; color: var(--dash-text); font-variant-numeric: tabular-nums; }
+.dashboard { overflow-anchor: none; min-width: 0; color: var(--dash-text); font-variant-numeric: tabular-nums; }
 .dashboard h1, .dashboard h2, .dashboard h3 { color: var(--dash-text); }
 .dashboard :is(button, a, input, select):focus-visible { outline: 2px solid var(--dash-accent); outline-offset: 2px; }
 

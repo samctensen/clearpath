@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useLayoutEffect, useState } from "react";
+import { usePendingHeight } from "@/lib/use-pending-height";
 import type { CaseDetail, DashboardRow } from "@clearpath/contracts";
 import { useResource } from "@/lib/use-resource";
 import { buildSubmissionJourney } from "@/lib/submission-journey";
@@ -15,8 +17,18 @@ export function SubmitterDashboard({ attention, attentionTotal, selectedId, refr
   attention: DashboardRow[]; attentionTotal: number; selectedId: string | null; refreshGeneration: number; loading: boolean; error: string | null;
   onSelect(id: string): void; onViewAttention(): void; onRetry(): void;
 }) {
+  const journeyKey = selectedId ? `${selectedId}:${refreshGeneration}` : null;
+  const [journeyLoad, setJourneyLoad] = useState({ key: journeyKey, settled: false });
+  // A→B→A still remounts the loader for A, even if A was the last settled case.
+  // Reset before committing the new selection so its skeleton cannot collapse.
+  if (journeyLoad.key !== journeyKey) setJourneyLoad({ key: journeyKey, settled: false });
+  const attentionLayout = usePendingHeight<HTMLElement>(loading);
+  const journeyLayout = usePendingHeight<HTMLElement>(loading || (journeyKey !== null && (journeyLoad.key !== journeyKey || !journeyLoad.settled)));
+  const onJourneySettled = useCallback(() => setJourneyLoad({ key: journeyKey, settled: true }), [journeyKey]);
+  const onJourneyRetry = useCallback(() => setJourneyLoad({ key: journeyKey, settled: false }), [journeyKey]);
+
   return <div className={styles.panels}>
-    <section className={styles.panel} aria-labelledby="attention-heading">
+    <section className={styles.panel} aria-labelledby="attention-heading" {...attentionLayout}>
       <div className={styles.panelHeading}><div><h2 id="attention-heading">Needs attention {!loading && !error && <span className={styles.count}>{attentionTotal}</span>}</h2></div><button className={styles.textButton} type="button" onClick={onViewAttention}>View all</button></div>
       {loading ? <div className={styles.skeleton} role="status"><span>Loading submissions…</span><i /><i /><i /></div> : error ? <div className={styles.empty}><p>Couldn’t load submissions.</p><button className={styles.textButton} onClick={onRetry} type="button">Try again</button></div> : attention.length ? <ul className={styles.attentionList}>{attention.map(item => <li className={styles.attentionItem} key={item.id}>
         <div className={styles.itemTitle}><strong>{item.title}</strong><span className={styles.badge} data-status={item.status}>{stateLabels[item.status]}</span></div>
@@ -25,16 +37,17 @@ export function SubmitterDashboard({ attention, attentionTotal, selectedId, refr
         <div className={styles.itemActions}><button type="button" className={styles.textButton} aria-label={`Preview journey for ${item.title}`} aria-pressed={selectedId === item.id} onClick={() => onSelect(item.id)}>Preview journey</button><Link className={styles.actionLink} href={`/cases/${encodeURIComponent(item.id)}?intent=revise`}>{item.status === "needs_information" ? "Add information" : "Revise copy"} <span aria-hidden="true">→</span></Link></div>
       </li>)}</ul> : <div className={styles.empty}><p>No submissions need changes or information.</p><span>Current submissions can be previewed from the list below.</span></div>}
     </section>
-    <section className={styles.panel} id="submission-journey" tabIndex={-1} aria-label="Selected submission journey">
-      {selectedId ? <SelectedJourney key={`${selectedId}:${refreshGeneration}`} selectedId={selectedId} onRetryList={onRetry} /> : loading ? <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div> : <div className={styles.empty}><p className={styles.eyebrow}>Submission journey</p><h2>Choose a submission</h2><p>Preview a submission to see its current state and recorded history.</p><Link className={styles.actionLink} href="/new">New submission →</Link></div>}
+    <section className={styles.panel} id="submission-journey" tabIndex={-1} aria-label="Selected submission journey" {...journeyLayout}>
+      {selectedId ? <SelectedJourney key={journeyKey} selectedId={selectedId} onRetryList={onRetry} onSettled={onJourneySettled} onRetryJourney={onJourneyRetry} /> : loading ? <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div> : <div className={styles.empty}><p className={styles.eyebrow}>Submission journey</p><h2>Choose a submission</h2><p>Preview a submission to see its current state and recorded history.</p><Link className={styles.actionLink} href="/new">New submission →</Link></div>}
     </section>
   </div>;
 }
 
-function SelectedJourney({ selectedId, onRetryList }: { selectedId: string; onRetryList(): void }) {
+function SelectedJourney({ selectedId, onRetryList, onSettled, onRetryJourney }: { selectedId: string; onRetryList(): void; onSettled(): void; onRetryJourney(): void }) {
   const resource = useResource<CaseDetail>(`/cases/${encodeURIComponent(selectedId)}`);
+  useLayoutEffect(() => { if (!resource.loading) onSettled(); }, [resource.loading, onSettled]);
   if (resource.loading) return <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div>;
-  if (resource.error || !resource.data || resource.data.case.id !== selectedId) return <div className={styles.empty} role="alert"><h2>Couldn’t load this journey</h2><p>{resource.error || "This submission is no longer available."}</p><div className={styles.itemActions}><button type="button" className={styles.textButton} onClick={resource.reload}>Try again</button><button type="button" className={styles.textButton} onClick={onRetryList}>Refresh list</button></div></div>;
+  if (resource.error || !resource.data || resource.data.case.id !== selectedId) return <div className={styles.empty} role="alert"><h2>Couldn’t load this journey</h2><p>{resource.error || "This submission is no longer available."}</p><div className={styles.itemActions}><button type="button" className={styles.textButton} onClick={() => { onRetryJourney(); resource.reload(); }}>Try again</button><button type="button" className={styles.textButton} onClick={onRetryList}>Refresh list</button></div></div>;
   const detail = resource.data;
   const { currentRevision, openManualConcerns, events } = buildSubmissionJourney(detail);
   const currentEvent = [...events].reverse().find(event => event.revision === currentRevision && (event.type === "changes_requested" || event.type === "approved"));

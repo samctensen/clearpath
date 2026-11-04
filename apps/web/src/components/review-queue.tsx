@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId, type DemoRole, type SubmitterView } from "@clearpath/contracts";
 import { useDashboard } from "@/lib/use-dashboard";
+import { usePendingHeight } from "@/lib/use-pending-height";
 import { dashboardStatuses, dashboardFilterStorageKey, defaultDashboardFilters, firstQueuePage, parseDashboardFilters, type DashboardFilters, type DashboardStatus, type QueuePosition } from "@/lib/dashboard";
 import { useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
@@ -99,6 +100,11 @@ function RoleQueue({ role }: { role: DemoRole }) {
   const loading = resource.loading;
   const failed = !loading && Boolean(resource.error);
   const overviewLoading = !overview && !failed;
+  const overviewLayout = usePendingHeight<HTMLDivElement>(overviewLoading);
+  const resultsLayout = usePendingHeight<HTMLDivElement>(loading);
+  const viewsLayout = usePendingHeight<HTMLDivElement>(loading);
+  const footerLayout = usePendingHeight<HTMLElement>(loading);
+  const scopeNoteLayout = usePendingHeight<HTMLDivElement>(loading);
   const toggleSort = () => update({ sort: filters.sort === "asc" ? "desc" : "asc" });
   useEffect(() => {
     if (!cohort) return;
@@ -133,7 +139,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
       <HeaderSearch label="Search campaigns or publishers" placeholder="Search campaigns or publishers" maxLength={200} value={filters.search} onChange={search => update({ search })} />
       <CustomSelect className={styles.product} label="Filter by product" value={filters.product} options={productOptions} onChange={product => update({ product: product as ProductId | "all" })} />
       <Link href="/new" className={role === "submitter" ? styles.primary : styles.secondary}><Icon name="plus" size={14} />New submission</Link>
-      {role === "reviewer" && overview?.actionable[0] && <Link href={`/cases/${encodeURIComponent(overview.actionable[0].id)}`} className={styles.primary}>Open next review<Icon name="arrow-right" size={14} /></Link>}
+      {role === "reviewer" && (overview?.actionable[0] ? <Link href={`/cases/${encodeURIComponent(overview.actionable[0].id)}`} className={styles.primary}>Open next review<Icon name="arrow-right" size={14} /></Link> : overviewLoading && resource.hadReviewAction ? <button type="button" className={styles.primary} disabled>Open next review<Icon name="arrow-right" size={14} /></button> : null)}
     </>} />
 
     {failed && <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load submissions</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div>}
@@ -142,7 +148,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
         refreshGeneration={resource.refreshGeneration} loading={overviewLoading}
         error={failed ? resource.error : null} onSelect={previewJourney}
         onViewAttention={showAttention} onRetry={resource.reload}
-      /> : <div className={styles.overviewGrid}>
+      /> : <div className={styles.overviewGrid} {...overviewLayout}>
         {!cohort ? <ReviewMapLoading unavailable={failed} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} /> : <ReviewMap cases={cohort} preferredCaseId={overview?.actionable[0]?.id} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />}
         <section className={styles.nextPanel} aria-labelledby="next-title" aria-busy={overviewLoading}>
           <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div></div>
@@ -155,25 +161,28 @@ function RoleQueue({ role }: { role: DemoRole }) {
           {overview && overview.overdueCount > 0 && <p className={styles.overdueNote}>{overview.overdueCount} open {overview.overdueCount === 1 ? "submission past its target" : "submissions past their targets"}</p>}
         </section>
       </div>}
-      {scoped && <p className={styles.cohortNote}>{role === "submitter" ? "Attention, journey and list" : "Chart and queue"} reflect your search and product filters.</p>}
+      <div {...scopeNoteLayout} style={{ display: "flow-root", ...scopeNoteLayout.style }}>
+        {scoped && <p className={styles.cohortNote}>{role === "submitter" ? "Attention, journey and list" : "Chart and queue"} reflect your search and product filters.</p>}
+      </div>
 
       <section id="submissions" className={styles.queue} aria-labelledby="queue-title" aria-busy={loading}>
         <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Workspace submissions"}</h2>{!loading && !failed && <span>{page.total}</span>}</div><div className={styles.queueControls}>
           {role === "reviewer" && <CustomSelect className={styles.statusFilter} label="Filter queue by status" value={filters.status} options={statusOptions} onChange={status => update({ status: status as DashboardStatus })} />}
           <button type="button" className={styles.sortButton} onClick={toggleSort} aria-label={filters.sort === "asc" ? "Sort latest target first" : "Sort earliest target first"}><Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={12} />Target date</button>
         </div></div>
-        {role === "submitter" && <div className={styles.submissionViews}>
+        {role === "submitter" && <div className={styles.submissionViews} {...viewsLayout}>
           <div className={styles.viewTabs} role="group" aria-label="Filter submissions">
             {viewTabs.map(tab => <button key={tab.value} type="button" aria-pressed={filters.view === tab.value} onClick={() => update({ view: tab.value, status: "all" })}>{tab.label}{tab.count !== undefined && <span>{tab.count}</span>}</button>)}
           </div><p>Filters the list below</p>
         </div>}
         {loading && <p className="sr-only" role="status">Loading submissions</p>}
+        <div {...resultsLayout}>
         {loading || rows.length ? <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">{role === "reviewer" ? "Copy checks" : "Next step"}</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th><th scope="col" className={styles.rowActions}><span className="sr-only">Actions</span></th></tr></thead>
           {loading ? <QueueRowsLoading /> : <tbody>{rows.map(item => <tr key={item.id} className={styles.queueRow}>
             <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
-            {role === "reviewer" ? <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unknown</small>}</div></td> : <td data-label="Next step" className={styles.nextStep}>
+            {role === "reviewer" ? <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unable to evaluate</small>}</div></td> : <td data-label="Next step" className={styles.nextStep}>
               <span>{item.status === "changes_requested" ? "Revise copy" : item.status === "needs_information" ? "Add information" : item.status === "ready_for_review" ? "Awaiting human review" : "View approved revision"}</span>
               <small>{item.guidance?.kind === "awaiting_review" ? <>Revision {item.guidance.revision} submitted {targetLabel(item.guidance.recordedAt.slice(0, 10))}</> : item.guidance?.kind === "reviewer_feedback" ? <>Reviewer feedback on revision {item.guidance.revision}</> : item.guidance?.kind === "missing_information" ? "Automated check needs context" : item.guidance?.kind === "approved_copy" ? <>Approval applies to revision {item.guidance.revision}</> : "Open submission for details"}</small>
             </td>}
@@ -182,9 +191,10 @@ function RoleQueue({ role }: { role: DemoRole }) {
             <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} status={item.status} role={role} onPreview={role === "submitter" ? () => previewJourney(item.id) : undefined} onAction={(kind, trigger) => { setActionNotice(""); setAction({ kind, caseId: item.id, title: item.title, trigger, role }); }} /></td>
           </tr>)}</tbody>}
         </table></div> : failed ? <div className={styles.empty}><Icon name="circle-exclamation" size={24} /><h3>Submissions are unavailable</h3><p>Try loading again to see the queue. Your filters are saved.</p></div> : <div className={styles.empty}><Icon name={workspaceTotal ? "magnifying-glass" : "file-lines"} size={27} /><h3>{workspaceTotal ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{workspaceTotal ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{workspaceTotal ? <button type="button" className={styles.secondary} onClick={resetFilters}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
-        <footer className={styles.queueFooter}>
+        </div>
+        <footer className={styles.queueFooter} {...footerLayout}>
           <span role="status">{loading ? "Loading submissions…" : failed ? "Queue unavailable" : page.total === 0 ? "No submissions in this view" : <>Showing {page.from}–{page.to} of {page.total} {scoped ? "matching " : ""}submissions{scoped && ` · ${workspaceTotal} in workspace`}</>}</span>
-          {!failed && (page.hasPrev || page.hasNext) && <div className={styles.pager}>
+          {!failed && (page.hasPrev || page.hasNext || (loading && resource.hadPagination)) && <div className={styles.pager}>
             <button type="button" className={styles.pagerStep} aria-label="Previous page" disabled={!page.hasPrev || loading} onClick={() => setPosition({ after: null, before: page.startCursor })}><Icon name="arrow-left" size={12} /></button>
             <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!page.hasNext || loading} onClick={() => setPosition({ after: page.endCursor, before: null })}><Icon name="arrow-right" size={12} /></button>
           </div>}

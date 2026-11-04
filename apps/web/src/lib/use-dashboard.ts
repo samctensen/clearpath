@@ -103,6 +103,9 @@ export function useDashboard(
     rows: error ? null : current?.rows ?? null,
     page: current?.page ?? emptyPage,
     workspaceTotal: current?.workspaceTotal ?? null,
+    // Retain only pagination geometry during loading; both controls stay disabled.
+    hadPagination: Boolean(state.result?.data.page.hasPrev || state.result?.data.page.hasNext),
+    hadReviewAction: Boolean(state.overview?.value.actionable.length),
     cohort: enabled && state.cohort?.key === cohortKey ? state.cohort.value : null,
     overview: enabled && state.overview?.key === overviewKey ? state.overview.value : null,
     attention: enabled && state.attention?.key === overviewKey ? state.attention.value : null,
