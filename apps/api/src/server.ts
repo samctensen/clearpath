@@ -1,5 +1,4 @@
 import Fastify from "fastify";
-import cookie from "@fastify/cookie";
 import { z } from "zod";
 import {
   type AiReview,
@@ -11,7 +10,7 @@ import {
   submissionSchema,
   success,
 } from "@clearpath/contracts";
-import type { Store } from "@clearpath/models";
+import { SHARED_WORKSPACE, type Store } from "@clearpath/models";
 import { policyRules } from "../../../packages/checks/policies.ts";
 import { type AiReviewProvider, AiReviewProviderError } from "./ai-review.ts";
 import { buildSeedPlans } from "./seed.ts";
@@ -21,7 +20,6 @@ type Dependencies = {
   analyze: (input: SubmissionInput) => Analysis;
   offers: Offer[];
   policyVersion: string;
-  cookieSecret: string;
   production?: boolean;
   seed?: boolean;
   allowedOrigins?: string[];
@@ -60,12 +58,8 @@ const error = (code: string, message: string) => ({ error: { code, message } });
 class AiReviewQuotaError extends Error {}
 class AiReviewUnavailableError extends Error {}
 
-async function seedWorkspace(deps: Dependencies): Promise<string> {
-  const result = await deps.store.createSeededWorkspace(
-    buildSeedPlans(deps.offers, deps.analyze, deps.seedCaseCount),
-  );
-  if (!result.ok) throw new Error("Unable to seed workspace");
-  return result.value;
+function seedPlansFor(deps: Dependencies) {
+  return deps.seed === false ? [] : buildSeedPlans(deps.offers, deps.analyze, deps.seedCaseCount);
 }
 export async function createApiServer(deps: Dependencies) {
   const aiReviewDailyLimit = deps.aiReviewDailyLimit ?? 50;
@@ -77,7 +71,6 @@ export async function createApiServer(deps: Dependencies) {
   }
   const inFlightAiReviews = new Map<string, Promise<Result<AiReview>>>();
   const app = Fastify({ logger: false, bodyLimit: 192 * 1024 });
-  await app.register(cookie, { secret: deps.cookieSecret });
   app.setNotFoundHandler((_req, reply) => {
     reply.status(404).send(error("not_found", "Route not found"));
   });
@@ -122,33 +115,23 @@ export async function createApiServer(deps: Dependencies) {
       if (!query.success) return reply.status(400).send(error("invalid", "Invalid dashboard filters"));
       (req as any).dashboardQuery = query.data;
     }
-    const signed = req.cookies.clearpath_workspace;
-    const parsed = signed ? req.unsignCookie(signed) : null;
-    let workspace = parsed?.valid ? parsed.value : null;
-    const exists = workspace ? await deps.store.hasWorkspace(workspace) : false;
-    const checkEmpty = exists && deps.seed !== false && req.method === "GET";
-    const summaries = checkEmpty && path === "/api/cases" ? await deps.store.listCases(workspace!) : undefined;
-    const dashboard = checkEmpty && path === "/api/dashboard"
-      ? await deps.store.dashboard(workspace!, (req as any).dashboardQuery) : undefined;
-    const noActiveCases = summaries?.length === 0 || dashboard?.workspaceTotal === 0;
-    const recoverEmpty = noActiveCases && !await deps.store.hasStoredCases(workspace!);
-    if (summaries && !recoverEmpty) (req as any).summaries = summaries;
-    if (dashboard && !recoverEmpty) (req as any).dashboard = dashboard;
-    if (!exists || recoverEmpty) {
-      workspace = deps.seed === false
-        ? await deps.store.createWorkspace()
-        : await seedWorkspace(deps);
-      reply.setCookie("clearpath_workspace", workspace, {
-        signed: true,
-        maxAge: 7 * 24 * 60 * 60,
-        httpOnly: true,
-        sameSite: "lax",
-        secure: !!deps.production,
-        path: "/",
-      });
-    }
-    (req as any).workspace = workspace;
+    (req as any).workspace = await sharedWorkspace();
   });
+  // Resolved once per process: the first request seeds, the rest reuse it.
+  let pending: Promise<string> | null = null;
+  const sharedWorkspace = () => {
+    pending ??= deps.store.ensureSharedWorkspace(seedPlansFor(deps)).then((result) => {
+      if (!result.ok) {
+        pending = null;
+        throw new Error("Unable to open the demo workspace");
+      }
+      return result.value;
+    }).catch((err) => {
+      pending = null;
+      throw err;
+    });
+    return pending;
+  };
   const ws = (req: unknown) => (req as any).workspace as string;
   const role = (req: any) => req.headers["x-demo-role"] ?? "reviewer";
   const reviewer = (req: any, reply: any) => {
@@ -186,6 +169,13 @@ export async function createApiServer(deps: Dependencies) {
   app.get("/api/decisions", async (req, reply) => {
     reply.header("Cache-Control", "private, no-store");
     return await deps.store.listDecisions(ws(req));
+  });
+  // Shared state drifts as visitors review copy; this puts the walkthrough back.
+  app.post("/api/demo/reset", async (_req, reply) => {
+    const reset = await deps.store.resetSharedWorkspace(seedPlansFor(deps));
+    if (!reset.ok) return reply.status(500).send(error("storage", "Unable to reset the demo"));
+    reply.header("Cache-Control", "private, no-store");
+    return { ok: true, workspace: SHARED_WORKSPACE };
   });
   app.post("/api/analyze", async (req, reply) => {
     const input = parse(submissionSchema, req.body, reply);
@@ -251,7 +241,7 @@ export async function createApiServer(deps: Dependencies) {
         if (cached.value) return success(cached.value);
         const reviewer = deps.aiReviewer;
         if (!reviewer) throw new AiReviewUnavailableError();
-        const reserved = await deps.store.consumeAiReviewBudget(workspace, aiReviewDailyLimit, 10);
+        const reserved = await deps.store.consumeAiReviewBudget(req.ip, aiReviewDailyLimit, 10);
         if (!reserved) throw new AiReviewQuotaError();
         let generated;
         try {

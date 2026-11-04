@@ -4,29 +4,26 @@ import { analyze, offers, POLICY_VERSION } from "@clearpath/checks";
 import type { CaseDetail, CaseSummary, DashboardResponse } from "@clearpath/contracts";
 import { createApiServer } from "../src/server.ts";
 
-Deno.test("delete endpoint enforces role, workspace, revision and approval guards", async () => {
+Deno.test("delete endpoint enforces role, revision and approval guards", async () => {
   const store = await createTestStore();
   const app = await createApiServer({
     store,
     analyze,
     offers,
     policyVersion: POLICY_VERSION,
-    cookieSecret: "a".repeat(32),
   });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/cases" });
-    const cookie = initial.headers["set-cookie"] as string;
     const cases = initial.json<CaseSummary[]>();
     const ready = cases.find((item) => item.status === "ready_for_review")!;
     const approved = cases.find((item) => item.status === "approved")!;
-    const headers = { cookie, "content-type": "application/json", "x-demo-role": "submitter" };
+    const headers = { "content-type": "application/json", "x-demo-role": "submitter" };
     const url = `/api/cases/${ready.id}/delete`;
     for (const role of [undefined, "reviewer"]) {
       const forbidden = await app.inject({
         method: "POST",
         url,
         headers: {
-          cookie,
           "content-type": "application/json",
           ...(role ? { "x-demo-role": role } : {}),
         },
@@ -34,14 +31,6 @@ Deno.test("delete endpoint enforces role, workspace, revision and approval guard
       });
       assert.equal(forbidden.statusCode, 403);
     }
-    const other = await app.inject({ method: "GET", url: "/api/cases" });
-    const isolated = await app.inject({
-      method: "POST",
-      url,
-      headers: { ...headers, cookie: other.headers["set-cookie"] as string },
-      payload: { expectedRevision: 1 },
-    });
-    assert.equal(isolated.statusCode, 404);
     for (
       const payload of [{}, { expectedRevision: 0 }, { expectedRevision: "1" }, {
         expectedRevision: 1,
@@ -66,7 +55,7 @@ Deno.test("delete endpoint enforces role, workspace, revision and approval guard
     assert.equal(blocked.statusCode, 422);
     assert.equal(blocked.json().error.code, "blocked");
     const detail =
-      (await app.inject({ method: "GET", url: `/api/cases/${ready.id}`, headers: { cookie } }))
+      (await app.inject({ method: "GET", url: `/api/cases/${ready.id}` }))
         .json<CaseDetail>();
     const revised = await app.inject({
       method: "POST",
@@ -98,7 +87,6 @@ Deno.test("delete endpoint enforces role, workspace, revision and approval guard
         (await app.inject({
           method: "GET",
           url: `/api/cases/${ready.id}${suffix}`,
-          headers: { cookie },
         })).statusCode,
         404,
       );
@@ -136,12 +124,12 @@ Deno.test("delete endpoint enforces role, workspace, revision and approval guard
       });
       assert.equal(response.statusCode, 404, mutation.path);
     }
-    const remaining = (await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } }))
+    const remaining = (await app.inject({ method: "GET", url: "/api/cases" }))
       .json<CaseSummary[]>();
     assert.equal(remaining.length, cases.length - 1);
     assert.ok(remaining.every((item) => item.id !== ready.id));
     const dashboard =
-      (await app.inject({ method: "GET", url: "/api/dashboard", headers: { cookie } })).json<
+      (await app.inject({ method: "GET", url: "/api/dashboard" })).json<
         DashboardResponse
       >();
     assert.ok(dashboard.overview, "Full dashboard includes its overview");
@@ -168,17 +156,15 @@ Deno.test("deleting every case leaves the workspace empty without reseeding eith
     analyze,
     offers,
     policyVersion: POLICY_VERSION,
-    cookieSecret: "a".repeat(32),
   });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/cases" });
-    const cookie = initial.headers["set-cookie"] as string;
-    const headers = { cookie, "content-type": "application/json", "x-demo-role": "submitter" };
+    const headers = { "content-type": "application/json", "x-demo-role": "submitter" };
     for (const item of initial.json<CaseSummary[]>()) {
       let revision = item.revision;
       if (item.status === "approved") {
         const detail =
-          (await app.inject({ method: "GET", url: `/api/cases/${item.id}`, headers: { cookie } }))
+          (await app.inject({ method: "GET", url: `/api/cases/${item.id}` }))
             .json<CaseDetail>();
         const revised = await app.inject({
           method: "POST",
@@ -200,7 +186,7 @@ Deno.test("deleting every case leaves the workspace empty without reseeding eith
     for (
       const url of ["/api/dashboard", "/api/cases", "/api/dashboard?status=approved", "/api/cases"]
     ) {
-      const response = await app.inject({ method: "GET", url, headers: { cookie } });
+      const response = await app.inject({ method: "GET", url });
       assert.equal(response.statusCode, 200);
       assert.equal(response.headers["set-cookie"], undefined);
       if (url.startsWith("/api/dashboard")) {

@@ -21,6 +21,13 @@ import {
   success,
 } from "@clearpath/contracts";
 
+/**
+ * Every visitor shares one workspace, so a case link resolves for whoever
+ * opens it. The id is fixed rather than generated so the shared workspace
+ * survives restarts and is identical across processes.
+ */
+export const SHARED_WORKSPACE = "shared-demo-workspace";
+
 export type SeedPlan = {
   input: SubmissionInput;
   analysis: Analysis;
@@ -105,7 +112,7 @@ export class Store {
     await this.db.query("INSERT INTO workspaces(id) VALUES ($1)", [workspace]);
     return workspace;
   }
-  async createSeededWorkspace(plans: SeedPlan[]): Promise<Result<string>> {
+  async createSeededWorkspace(plans: SeedPlan[], workspaceId?: string): Promise<Result<string>> {
     for (const plan of plans) {
       const decision = plan.decision;
       if (!decision) continue;
@@ -137,7 +144,7 @@ export class Store {
     }
     try {
       const hashes = await Promise.all(plans.map((plan) => hash(plan.input.content)));
-      const workspace = id();
+      const workspace = workspaceId ?? id();
       const cases: unknown[] = [],
         revisions: unknown[] = [],
         events: unknown[] = [],
@@ -265,6 +272,41 @@ export class Store {
       return failure("storage", "Unable to access storage");
     }
   }
+  /**
+   * Returns the shared demo workspace, seeding it the first time it is asked
+   * for. Concurrent callers race on the workspace primary key; the loser's
+   * transaction rolls back whole, so an already-present workspace is success.
+   */
+  async ensureSharedWorkspace(plans: SeedPlan[]): Promise<Result<string>> {
+    if (await this.hasWorkspace(SHARED_WORKSPACE)) return success(SHARED_WORKSPACE);
+    const seeded = await this.createSeededWorkspace(plans, SHARED_WORKSPACE);
+    if (!seeded.ok && await this.hasWorkspace(SHARED_WORKSPACE)) return success(SHARED_WORKSPACE);
+    return seeded;
+  }
+
+  /**
+   * Discards everything in the shared workspace and seeds it again. Shared
+   * state drifts as visitors review copy; this is how the demo returns to the
+   * state its walkthrough describes.
+   */
+  async resetSharedWorkspace(plans: SeedPlan[]): Promise<Result<string>> {
+    try {
+      await this.db.transaction(async (db) => {
+        const scoped = "WHERE case_id IN (SELECT id FROM cases WHERE workspace_id=$1)";
+        // Children first: the schema declares no cascading deletes.
+        for (
+          const table of ["ai_reviews", "events", "decisions", "manual_findings", "dispositions"]
+        ) await db.query(`DELETE FROM ${table} ${scoped}`, [SHARED_WORKSPACE]);
+        await db.query(`DELETE FROM revisions ${scoped}`, [SHARED_WORKSPACE]);
+        await db.query("DELETE FROM cases WHERE workspace_id=$1", [SHARED_WORKSPACE]);
+        await db.query("DELETE FROM workspaces WHERE id=$1", [SHARED_WORKSPACE]);
+      });
+    } catch {
+      return failure("storage", "Unable to access storage");
+    }
+    return await this.ensureSharedWorkspace(plans);
+  }
+
   async hasWorkspace(workspace: string) {
     return (await this.db.query("SELECT id FROM workspaces WHERE id=$1", [workspace])).length > 0;
   }
@@ -431,12 +473,12 @@ export class Store {
     }).catch(() => failure<AiReview>("storage", "Unable to access storage"));
   }
   async consumeAiReviewBudget(
-    workspace: string,
+    clientKey: string,
     globalLimit: number,
-    workspaceLimit: number,
+    clientLimit: number,
   ): Promise<boolean> {
     if (
-      [globalLimit, workspaceLimit].some((limit) =>
+      [globalLimit, clientLimit].some((limit) =>
         !Number.isInteger(limit) || limit <= 0 || limit > 2147483647
       )
     ) throw new Error("AI review limits must be positive 32-bit integers");
@@ -445,8 +487,8 @@ export class Store {
         // now() is stable within this transaction; both counters use the same database UTC day.
         for (
           const [scope, limit] of [["global", globalLimit], [
-            `workspace:${workspace}`,
-            workspaceLimit,
+            `client:${clientKey}`,
+            clientLimit,
           ]]
         ) {
           const rows = await db.query(

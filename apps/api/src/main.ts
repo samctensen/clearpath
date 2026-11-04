@@ -5,15 +5,12 @@ import { parseAiReviewDailyLimit, parseSeedCaseCount, parseWebOrigins } from "./
 import { createOpenAiReviewer } from "./ai-review.ts";
 const production = Deno.env.get("NODE_ENV") === "production";
 const databaseUrl = Deno.env.get("DATABASE_URL");
-const cookieSecret = Deno.env.get("COOKIE_SECRET");
 const origins = parseWebOrigins(Deno.env.get("WEB_ORIGIN"));
 const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
 const aiReviewDailyLimit = parseAiReviewDailyLimit(Deno.env.get("AI_REVIEW_DAILY_LIMIT"));
 const seedCaseCount = parseSeedCaseCount(Deno.env.get("SEED_CASE_COUNT"));
-if (production && (!databaseUrl || !cookieSecret || cookieSecret.length < 32 || !origins.length)) {
-  throw new Error(
-    "Production requires DATABASE_URL, WEB_ORIGIN, and COOKIE_SECRET of at least 32 characters",
-  );
+if (production && (!databaseUrl || !origins.length)) {
+  throw new Error("Production requires DATABASE_URL and WEB_ORIGIN");
 }
 const store = await createStore({
   databaseUrl,
@@ -25,7 +22,6 @@ const app = await createApiServer({
   analyze,
   offers,
   policyVersion: POLICY_VERSION,
-  cookieSecret: cookieSecret ?? "local-development-cookie-secret-change-me",
   production,
   allowedOrigins: origins.length ? origins : undefined,
   aiReviewDailyLimit,

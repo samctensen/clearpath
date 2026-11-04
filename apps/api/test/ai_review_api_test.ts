@@ -49,7 +49,6 @@ async function setup(aiReviewer?: AiReviewProvider, overrides: Partial<Deps> = {
     analyze: () => analysis,
     offers: [offer],
     policyVersion: "1",
-    cookieSecret: "a".repeat(32),
     seed: false,
     aiReviewer,
     ...overrides,
@@ -57,27 +56,24 @@ async function setup(aiReviewer?: AiReviewProvider, overrides: Partial<Deps> = {
   const app = await createApiServer(deps);
   const created = await app.inject({ method: "POST", url: "/api/cases", headers, payload: input });
   assert.equal(created.statusCode, 201);
-  const cookie = created.headers["set-cookie"] as string;
   const id = created.json().case.id as string;
   const post = (expectedRevision = 1, role = "reviewer") =>
     app.inject({
       method: "POST",
       url: `/api/cases/${id}/ai-review`,
-      headers: { ...headers, cookie, "x-demo-role": role },
+      headers: { ...headers, "x-demo-role": role },
       payload: { expectedRevision },
     });
   const get = (revision = 1) =>
     app.inject({
       method: "GET",
       url: `/api/cases/${id}/ai-review?revision=${revision}`,
-      headers: { cookie },
     });
   return {
     store,
     app,
     deps,
     id,
-    cookie,
     post,
     get,
     close: async () => {
@@ -104,7 +100,7 @@ Deno.test("AI API reuses a saved review for both roles and does not change appro
     const approve = await f.app.inject({
       method: "POST",
       url: `/api/cases/${f.id}/decision`,
-      headers: { ...headers, cookie: f.cookie },
+      headers: { ...headers },
       payload: { expectedRevision: 1, decision: "approve", note: "" },
     });
     assert.equal(approve.statusCode, 200);
@@ -118,14 +114,12 @@ Deno.test("AI API reuses a saved review for both roles and does not change appro
       (await f.app.inject({
         method: "GET",
         url: `/api/cases/${f.id}`,
-        headers: { cookie: f.cookie },
       })).json(),
       approve.json(),
     );
     const queue = await f.app.inject({
       method: "GET",
       url: "/api/cases",
-      headers: { cookie: f.cookie },
     });
     assert.equal(queue.json()[0].status, "approved");
     assert.equal(calls, 1);
@@ -134,7 +128,7 @@ Deno.test("AI API reuses a saved review for both roles and does not change appro
   }
 });
 
-Deno.test("AI API scopes foreign cases and validates revision before paid calls", async () => {
+Deno.test("AI API validates revision before paid calls", async () => {
   let calls = 0;
   const f = await setup({
     generate: async () => {
@@ -143,15 +137,6 @@ Deno.test("AI API scopes foreign cases and validates revision before paid calls"
     },
   });
   try {
-    for (const method of ["GET", "POST"] as const) {
-      const response = await f.app.inject({
-        method,
-        url: `/api/cases/${f.id}/ai-review?revision=1`,
-        headers,
-        ...(method === "POST" ? { payload: { expectedRevision: 1 } } : {}),
-      });
-      assert.equal(response.statusCode, 404);
-    }
     assert.equal((await f.get(99)).statusCode, 404);
     assert.equal((await f.post(99)).statusCode, 409);
     for (
@@ -161,7 +146,6 @@ Deno.test("AI API scopes foreign cases and validates revision before paid calls"
         (await f.app.inject({
           method: "GET",
           url: `/api/cases/${f.id}/ai-review${query}`,
-          headers: { cookie: f.cookie },
         })).statusCode,
         400,
       );
@@ -186,7 +170,7 @@ Deno.test("AI API remains optional and reads saved reviews without configuration
       const saved = await withProvider.inject({
         method: "POST",
         url: `/api/cases/${f.id}/ai-review`,
-        headers: { ...headers, cookie: f.cookie },
+        headers: { ...headers },
         payload: { expectedRevision: 1 },
       });
       assert.equal(saved.statusCode, 200);
@@ -207,7 +191,7 @@ Deno.test("AI API rejects historical cached generation but keeps historical read
     const revised = await f.app.inject({
       method: "POST",
       url: `/api/cases/${f.id}/revisions`,
-      headers: { ...headers, cookie: f.cookie, "x-demo-role": "submitter" },
+      headers: { ...headers, "x-demo-role": "submitter" },
       payload: {
         expectedRevision: 1,
         input: { ...input, content: "Changed card submission copy." },
@@ -236,7 +220,7 @@ Deno.test("AI API rejects a slow completion after a new revision without holding
     const revised = await f.app.inject({
       method: "POST",
       url: `/api/cases/${f.id}/revisions`,
-      headers: { ...headers, cookie: f.cookie, "x-demo-role": "submitter" },
+      headers: { ...headers, "x-demo-role": "submitter" },
       payload: { expectedRevision: 1, input: { ...input, content: "Revised credit card copy." } },
     });
     assert.equal(revised.statusCode, 200);
@@ -310,13 +294,13 @@ Deno.test("AI API enforces the workspace cap and reads cache after the cap", asy
       const created = await f.app.inject({
         method: "POST",
         url: "/api/cases",
-        headers: { ...headers, cookie: f.cookie },
+        headers: { ...headers },
         payload: input,
       });
       const review = await f.app.inject({
         method: "POST",
         url: `/api/cases/${created.json().case.id}/ai-review`,
-        headers: { ...headers, cookie: f.cookie },
+        headers: { ...headers },
         payload: { expectedRevision: 1 },
       });
       assert.equal(review.statusCode, i < 9 ? 200 : 429);
@@ -452,7 +436,7 @@ Deno.test("two AI API instances return the persisted winner and both attempts co
     const second = secondApp.inject({
       method: "POST",
       url: `/api/cases/${f.id}/ai-review`,
-      headers: { ...headers, cookie: f.cookie },
+      headers: { ...headers },
       payload: { expectedRevision: 1 },
     });
     await Promise.all([firstEntered.promise, secondEntered.promise]);
@@ -466,13 +450,13 @@ Deno.test("two AI API instances return the persisted winner and both attempts co
     const created = await f.app.inject({
       method: "POST",
       url: "/api/cases",
-      headers: { ...headers, cookie: f.cookie },
+      headers: { ...headers },
       payload: input,
     });
     const capped = await secondApp.inject({
       method: "POST",
       url: `/api/cases/${created.json().case.id}/ai-review`,
-      headers: { ...headers, cookie: f.cookie },
+      headers: { ...headers },
       payload: { expectedRevision: 1 },
     });
     assert.equal(capped.statusCode, 429);

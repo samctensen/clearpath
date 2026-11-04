@@ -127,11 +127,11 @@ Deno.test("AI quota uses the database UTC day and storage failures roll back the
       await client.exec(await Deno.readTextFile(new URL(`./migrations/${file}`, import.meta.url)));
     }
     await client.exec("SET TIME ZONE 'Pacific/Honolulu'");
-    let failWorkspace = true;
+    let failClientScope = true;
     type DB = ConstructorParameters<typeof Store>[0];
     const wrap = (c: any): DB => ({
       query: async (sql, params = []) => {
-        if (failWorkspace && params.includes("workspace:example")) {
+        if (failClientScope && params.includes("client:example")) {
           throw new Error("storage failure");
         }
         return (await c.query(sql, params)).rows;
@@ -141,7 +141,7 @@ Deno.test("AI quota uses the database UTC day and storage failures roll back the
     });
     const store = new Store(wrap(client), "pglite");
     await assert.rejects(() => store.consumeAiReviewBudget("example", 1, 10), /storage failure/);
-    failWorkspace = false;
+    failClientScope = false;
     assert.equal(await store.consumeAiReviewBudget("example", 1, 10), true);
     const { rows } = await client.query<{ correct_day: boolean; requests: number }>(
       "SELECT day = (now() AT TIME ZONE 'UTC')::date AS correct_day, requests FROM ai_review_daily_usage",

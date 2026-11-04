@@ -4,7 +4,7 @@ ClearPath is a copy-review workspace for financial marketing teams. Submitters c
 
 [Open the hosted demo](https://clearpathfinancial.xyz) · [API health](https://clearpathfinancial.xyz/api/health)
 
-The demo uses fictional offers and sample campaigns. The **Reviewer** and **Submitter** controls simulate both roles inside the same browser workspace. A signed cookie keeps each browser's workspace separate. Production authentication is outside the scope of this demo.
+The demo uses fictional offers and sample campaigns. The **Reviewer** and **Submitter** controls simulate both roles inside one shared workspace, so a link to a submission opens the same case for whoever follows it. Because the workspace is shared, reviewing copy changes what the next visitor sees; `POST /api/demo/reset` discards the drift and seeds the workspace again. Production authentication is outside the scope of this demo.
 
 ## Run locally
 

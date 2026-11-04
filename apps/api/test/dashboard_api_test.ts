@@ -11,7 +11,6 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     analyze,
     offers,
     policyVersion: POLICY_VERSION,
-    cookieSecret: "a".repeat(32),
     seedCaseCount: 18,
   });
   try {
@@ -25,8 +24,7 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     assert.equal(body.page.hasNext, true);
     assert.equal(body.workspaceTotal, 18);
     assert.equal(body.overview!.overdueCount, 8);
-    const cookie = initial.headers["set-cookie"] as string;
-    const head = await app.inject({ method: "HEAD", url: "/api/dashboard", headers: { cookie } });
+    const head = await app.inject({ method: "HEAD", url: "/api/dashboard" });
     assert.equal(head.statusCode, 200);
     assert.equal(head.body, "");
     let dashboardCalls = 0;
@@ -39,7 +37,6 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
       method: "GET",
       url:
         "/api/dashboard?product=card&status=changes_requested&q=NORTHSTAR&sort=title&direction=desc&today=2026-11-16",
-      headers: { cookie },
     });
     assert.equal(filtered.statusCode, 200);
     assert.equal(dashboardCalls, 1);
@@ -52,16 +49,13 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     const empty = await app.inject({
       method: "GET",
       url: "/api/dashboard?q=not-present&today=2026-11-16",
-      headers: { cookie },
     });
     assert.equal(empty.statusCode, 200);
     assert.equal(empty.json<DashboardResponse>().rows.length, 0);
     assert.equal(empty.json<DashboardResponse>().workspaceTotal, 18);
-    assert.equal(empty.headers["set-cookie"], undefined);
     const restored = await app.inject({
       method: "GET",
       url: "/api/dashboard",
-      headers: { cookie },
     });
     assert.deepEqual(
       restored.json<DashboardResponse>().cohort!.map((item) => item.id),
@@ -85,18 +79,17 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
       const invalid = await app.inject({
         method: "GET",
         url: "/api/dashboard?" + suffix,
-        headers: { cookie },
       });
       assert.equal(invalid.statusCode, 400, suffix);
       assert.equal(invalid.json().error.code, "invalid");
     }
-    const other = await app.inject({ method: "GET", url: "/api/dashboard" });
-    assert.ok(
-      other.json<DashboardResponse>().rows.every((item) =>
-        !body.rows.some((existing) => existing.id === item.id)
-      ),
+    // Visitors share one workspace, so a second arrival sees the same queue.
+    const other = await app.inject({ method: "GET", url: "/api/dashboard?today=2026-11-16" });
+    assert.deepEqual(
+      other.json<DashboardResponse>().rows.map((item) => item.id),
+      body.rows.map((item) => item.id),
     );
-    const legacy = await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } });
+    const legacy = await app.inject({ method: "GET", url: "/api/cases" });
     assert.equal(legacy.statusCode, 200);
     assert.ok(Array.isArray(legacy.json()));
     assert.equal(legacy.json().length, 18);
@@ -106,30 +99,18 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
   }
 });
 
-Deno.test("dashboard recovers an actually empty demo workspace", async () => {
+Deno.test("an unseeded demo workspace is left empty rather than backfilled", async () => {
   const store = await createTestStore();
-  const deps = {
-    store,
-    analyze,
-    offers,
-    policyVersion: POLICY_VERSION,
-    cookieSecret: "a".repeat(32),
-    seedCaseCount: 18,
-  };
+  const deps = { store, analyze, offers, policyVersion: POLICY_VERSION, seedCaseCount: 18 };
   const emptyApp = await createApiServer({ ...deps, seed: false });
   const app = await createApiServer(deps);
   try {
     const empty = await emptyApp.inject({ method: "GET", url: "/api/dashboard" });
     assert.equal(empty.json<DashboardResponse>().workspaceTotal, 0);
-    const recovered = await app.inject({
-      method: "GET",
-      url: "/api/dashboard?q=not-present",
-      headers: { cookie: empty.headers["set-cookie"] as string },
-    });
-    assert.equal(recovered.statusCode, 200);
-    assert.equal(recovered.json<DashboardResponse>().rows.length, 0);
-    assert.equal(recovered.json<DashboardResponse>().workspaceTotal, 18);
-    assert.ok(recovered.headers["set-cookie"]);
+    const later = await app.inject({ method: "GET", url: "/api/dashboard?q=not-present" });
+    assert.equal(later.statusCode, 200);
+    assert.equal(later.json<DashboardResponse>().rows.length, 0);
+    assert.equal(later.json<DashboardResponse>().workspaceTotal, 0);
   } finally {
     await emptyApp.close();
     await app.close();
@@ -144,14 +125,12 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
     analyze,
     offers,
     policyVersion: POLICY_VERSION,
-    cookieSecret: "a".repeat(32),
     seedCaseCount: 18,
   });
   try {
     const first = await app.inject({ method: "GET", url: "/api/dashboard?limit=2&today=2026-11-16" });
     assert.equal(first.statusCode, 200);
     const firstBody = first.json<DashboardResponse>();
-    const cookie = first.headers["set-cookie"] as string;
     assert.equal(firstBody.rows.length, 2);
     assert.equal(firstBody.page.total, 18);
     assert.equal(firstBody.page.from, 1);
@@ -164,7 +143,6 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
       url: `/api/dashboard?limit=2&today=2026-11-16&scope=page&after=${
         encodeURIComponent(firstBody.page.endCursor!)
       }`,
-      headers: { cookie },
     });
     assert.equal(second.statusCode, 200);
     const secondBody = second.json<DashboardResponse>();
@@ -181,7 +159,6 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
     const rejected = await app.inject({
       method: "GET",
       url: "/api/dashboard?after=not-a-real-cursor",
-      headers: { cookie },
     });
     assert.equal(rejected.statusCode, 400);
 
@@ -190,7 +167,6 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
       url: `/api/dashboard?after=${encodeURIComponent(firstBody.page.endCursor!)}&before=${
         encodeURIComponent(firstBody.page.endCursor!)
       }`,
-      headers: { cookie },
     });
     assert.equal(conflicting.statusCode, 400);
   } finally {
@@ -202,12 +178,11 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
 Deno.test("dashboard rejects malformed cursor timestamps before SQL while preserving PostgreSQL precision", async () => {
   const store = await createTestStore();
   const app = await createApiServer({
-    store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32),
+    store, analyze, offers, policyVersion: POLICY_VERSION,
   });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/dashboard?sort=updatedAt" });
     assert.equal(initial.statusCode, 200);
-    const cookie = initial.headers["set-cookie"] as string;
     const id = initial.json<DashboardResponse>().rows[0].id;
     const valid = "2026-11-04 10:20:30.123456+00";
     let dashboardCalls = 0;
@@ -224,7 +199,7 @@ Deno.test("dashboard rejects malformed cursor timestamps before SQL while preser
         const encoded = encodeQueueCursor({ key: valid, createdAt: valid, id, [field]: malformed });
         for (const direction of ["after", "before"]) {
           const query = new URLSearchParams({ sort: "updatedAt", [direction]: encoded });
-          const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}`, headers: { cookie } });
+          const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}` });
           assert.equal(response.statusCode, 400, `${direction}.${field}: ${malformed}`);
           assert.equal(response.json().error.code, "invalid");
         }
@@ -239,7 +214,7 @@ Deno.test("dashboard rejects malformed cursor timestamps before SQL while preser
       assert.equal(decodeQueueCursor(encoded).createdAt, timestamp);
       for (const direction of ["after", "before"]) {
         const query = new URLSearchParams({ sort: "updatedAt", [direction]: encoded });
-        const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}`, headers: { cookie } });
+        const response = await app.inject({ method: "GET", url: `/api/dashboard?${query}` });
         assert.equal(response.statusCode, 200, timestamp);
       }
     }
