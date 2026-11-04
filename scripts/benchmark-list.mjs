@@ -21,7 +21,7 @@ for (let sample = 1; sample <= samples; sample++) {
     const totalMs = performance.now() - started;
     assert.equal(response.status, 200, `List request failed with HTTP ${response.status}`);
     const list = JSON.parse(body);
-    assert.equal(list.length, 6, "a fresh demo workspace has six cases");
+    assert.equal(list.length, 18, "a fresh demo workspace has eighteen cases");
     for (const item of list) {
       assert.equal(typeof item.title, "string");
       assert.equal(typeof item.revision, "number");

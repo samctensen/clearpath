@@ -23,7 +23,7 @@ const health = await request("/health");
 assert.equal(health.ok, true);
 const start = performance.now();
 const queue = await request("/cases");
-assert.equal(queue.length, 6, "a fresh visitor receives six demo cases");
+assert.equal(queue.length, 18, "a fresh visitor receives eighteen demo cases");
 console.log(`Fresh workspace ready in ${((performance.now() - start) / 1000).toFixed(1)}s (${health.storage}).`);
 const { offers } = await request("/catalog");
 const offer = offers.find((value) => value.id === "everyday-card");

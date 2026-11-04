@@ -113,10 +113,10 @@ Deno.test("new workspace is seeded once and returning cookie retains cases", asy
   try {
     const first = await app.inject({ method: "GET", url: "/api/cases" });
     assert.equal(first.statusCode, 200);
-    assert.equal(first.json().length, 6);
+    assert.equal(first.json().length, 18);
     const cookie = first.headers["set-cookie"] as string;
     const second = await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } });
-    assert.equal(second.json().length, 6);
+    assert.equal(second.json().length, 18);
     assert.deepEqual(
       second.json().map((c: { id: string }) => c.id),
       first.json().map((c: { id: string }) => c.id),
@@ -195,7 +195,7 @@ Deno.test("real analyzer seeds the expected demo review states", async () => {
     const response = await app.inject({ method: "GET", url: "/api/cases" });
     assert.equal(response.statusCode, 200);
     const cases = response.json() as { status: string }[];
-    assert.equal(cases.length, 6);
+    assert.equal(cases.length, 18);
     for (
       const status of ["needs_information", "changes_requested", "approved", "ready_for_review"]
     ) assert.ok(cases.some((c) => c.status === status), `missing ${status}`);
@@ -316,7 +316,7 @@ Deno.test("recovers an existing empty workspace by issuing a newly seeded worksp
       headers: { cookie: empty.headers["set-cookie"] as string },
     });
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json().length, 6);
+    assert.equal(response.json().length, 18);
     assert.ok(response.headers["set-cookie"]);
   } finally {
     await before.close();
@@ -346,7 +346,7 @@ Deno.test("returning queue request loads summaries once", async () => {
     };
     const response = await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } });
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json().length, 6);
+    assert.equal(response.json().length, 18);
     assert.equal(calls, 1);
   } finally {
     await app.close();

@@ -28,7 +28,7 @@ type Segment = Span & { text: string };
 const REG_Z_16 = "https://www.consumerfinance.gov/rules-policy/regulations/1026/16/";
 const REG_Z_24 = "https://www.consumerfinance.gov/rules-policy/regulations/1026/24/";
 
-const titles: Record<RuleId, string> = {
+export const titles: Record<RuleId, string> = {
   "review-context": "Review context is complete",
   "offer-match": "Advertised terms match the selected offer",
   "card-intro-label": "Introductory card rates are labeled",
@@ -44,7 +44,7 @@ const kinds: Record<RuleId, CheckResult["kind"]> = {
   "loan-repayment": "disclosure",
   "approval-claims": "human_judgment",
 };
-const references: Record<RuleId, Reference> = {
+export const references: Record<RuleId, Reference> = {
   "review-context": {
     label: "ClearPath fictional offer catalog: product, offer and availability dates",
     type: "product_fact",

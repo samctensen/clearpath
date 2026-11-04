@@ -144,6 +144,8 @@ Deno.test("delete endpoint enforces role, workspace, revision and approval guard
       (await app.inject({ method: "GET", url: "/api/dashboard", headers: { cookie } })).json<
         DashboardResponse
       >();
+    assert.ok(dashboard.overview, "Full dashboard includes its overview");
+    assert.ok(dashboard.cohort, "Full dashboard includes its cohort");
     assert.equal(dashboard.workspaceTotal, remaining.length);
     assert.equal(dashboard.overview.total, remaining.length);
     assert.equal(

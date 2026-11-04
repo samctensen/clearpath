@@ -1,20 +1,20 @@
-import type { CaseStatus, CaseSummary } from "@clearpath/contracts";
+import type { CaseStatus, QueueCohortItem } from "@clearpath/contracts";
 import { statusLabels } from "@clearpath/contracts";
-import { dashboardRows, dashboardStatuses, defaultDashboardFilters } from "./dashboard.ts";
+import { compareCases, dashboardStatuses } from "./dashboard.ts";
 
 const VISIBLE_PER_GROUP = 8;
 
 type ReviewMapGroup = {
   status: CaseStatus;
   label: string;
-  items: CaseSummary[];
-  visible: CaseSummary[];
+  items: QueueCohortItem[];
+  visible: QueueCohortItem[];
   hiddenCount: number;
   count: number;
 };
 
 /** Group the whole cohort; selecting a status must not change the map's denominator. */
-export function buildReviewMap(cases: readonly CaseSummary[], preferredCaseId?: string): {
+export function buildReviewMap(cases: readonly QueueCohortItem[], preferredCaseId?: string): {
   total: number;
   open: number;
   followUp: number;
@@ -22,7 +22,7 @@ export function buildReviewMap(cases: readonly CaseSummary[], preferredCaseId?: 
   groups: ReviewMapGroup[];
   initialCaseId: string | null;
 } {
-  const ordered = dashboardRows(cases, defaultDashboardFilters);
+  const ordered = [...cases].sort((left, right) => compareCases(left, right, "asc"));
   const groups = dashboardStatuses.map((status): ReviewMapGroup => {
     const items = ordered.filter((item) => item.status === status);
     const visible = items.slice(0, VISIBLE_PER_GROUP);

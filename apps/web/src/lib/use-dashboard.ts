@@ -1,27 +1,66 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { DashboardResponse, DemoRole } from "@clearpath/contracts";
+import type {
+  DashboardOverview,
+  DashboardResponse,
+  DemoRole,
+  QueueCohortItem,
+  QueuePage,
+} from "@clearpath/contracts";
 import { api, errorMessage } from "./api";
-import { dashboardRequest, type DashboardFilters } from "./dashboard";
+import { dashboardRequest, firstQueuePage, type DashboardFilters, type QueuePosition } from "./dashboard";
 
-type Snapshot = {
-  requestKey: string;
-  cohortKey: string;
-  overviewKey: string;
-  data: DashboardResponse;
-};
+type Held<T> = { key: string; value: T } | null;
+type Snapshot = { requestKey: string; data: DashboardResponse };
 type QueryState = {
   result: Snapshot | null;
   failure: { requestKey: string; message: string } | null;
+  cohort: Held<QueueCohortItem[]>;
+  overview: Held<DashboardOverview>;
 };
 
-/** Never expose rows for a different query; retain only the still-valid map/overview. */
-export function useDashboard(filters: DashboardFilters, role: DemoRole, today: string, enabled: boolean) {
+const emptyPage: QueuePage = {
+  total: 0,
+  from: 0,
+  to: 0,
+  hasPrev: false,
+  hasNext: false,
+  startCursor: null,
+  endCursor: null,
+};
+
+/**
+ * Never expose rows for a different query; retain only the still-valid map/overview.
+ * Walking to another page asks the API for rows alone, since the chart and the counts
+ * cover the whole cohort and cannot change while only the cursor moves.
+ */
+export function useDashboard(
+  filters: DashboardFilters,
+  role: DemoRole,
+  today: string,
+  enabled: boolean,
+  position: QueuePosition = firstQueuePage,
+) {
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<QueryState>({ result: null, failure: null });
+  const [state, setState] = useState<QueryState>({
+    result: null,
+    failure: null,
+    cohort: null,
+    overview: null,
+  });
   const previousSearch = useRef<string | null>(null);
-  const { path, cohortKey, overviewKey } = dashboardRequest(filters, role, today);
+  const chosenScope = useRef<{ key: string; scope: "full" | "page" } | null>(null);
+
+  const { cohortKey, overviewKey } = dashboardRequest(filters, role, today, position);
+  const paging = position.after !== null || position.before !== null;
+  const held = state.cohort?.key === cohortKey && state.overview?.key === overviewKey;
+  // Pin the scope per position, so answering a request can never change the next URL.
+  const scopeKey = JSON.stringify([cohortKey, overviewKey, position, attempt]);
+  if (chosenScope.current?.key !== scopeKey) {
+    chosenScope.current = { key: scopeKey, scope: paging && held ? "page" : "full" };
+  }
+  const { path } = dashboardRequest(filters, role, today, position, chosenScope.current.scope);
   const requestKey = `${attempt}:${path}`;
   const search = filters.search.trim();
 
@@ -33,9 +72,13 @@ export function useDashboard(filters: DashboardFilters, role: DemoRole, today: s
     const timer = window.setTimeout(() => {
       api<DashboardResponse>(path, { signal: controller.signal })
         .then(data => {
-          if (!controller.signal.aborted) {
-            setState({ result: { requestKey, cohortKey, overviewKey, data }, failure: null });
-          }
+          if (controller.signal.aborted) return;
+          setState(current => ({
+            result: { requestKey, data },
+            failure: null,
+            cohort: data.cohort ? { key: cohortKey, value: data.cohort } : current.cohort,
+            overview: data.overview ? { key: overviewKey, value: data.overview } : current.overview,
+          }));
         })
         .catch((error: unknown) => {
           if (!controller.signal.aborted) {
@@ -51,14 +94,13 @@ export function useDashboard(filters: DashboardFilters, role: DemoRole, today: s
 
   const current = enabled && state.result?.requestKey === requestKey ? state.result.data : null;
   const error = enabled && state.failure?.requestKey === requestKey ? state.failure.message : "";
-  const cohort = enabled && state.result?.cohortKey === cohortKey ? state.result.data.cohort : null;
-  const overview = enabled && state.result?.overviewKey === overviewKey ? state.result.data.overview : null;
 
   return {
     rows: error ? null : current?.rows ?? null,
+    page: current?.page ?? emptyPage,
     workspaceTotal: current?.workspaceTotal ?? null,
-    cohort,
-    overview,
+    cohort: enabled && state.cohort?.key === cohortKey ? state.cohort.value : null,
+    overview: enabled && state.overview?.key === overviewKey ? state.overview.value : null,
     loading: !current && !error,
     error,
     reload: () => setAttempt(value => value + 1),

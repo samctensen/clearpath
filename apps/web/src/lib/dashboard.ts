@@ -1,4 +1,4 @@
-import type { CaseStatus, CaseSummary, DemoRole, ProductId } from "@clearpath/contracts";
+import type { CaseStatus, CaseSummary, DemoRole, ProductId, QueueCohortItem } from "@clearpath/contracts";
 
 export type DashboardStatus = CaseStatus | "all";
 export type DashboardFilters = {
@@ -41,8 +41,24 @@ export function parseDashboardFilters(value: unknown): DashboardFilters {
   };
 }
 
-/** Queue ordering lives on the API; separate keys keep unchanged map data mounted. */
-export function dashboardRequest(filters: DashboardFilters, role: DemoRole, today: string) {
+/** How many queue rows one page holds. The API caps this; the client never pages wider. */
+export const queuePageSize = 10;
+
+/** Where the queue is paged to. Both null means the first page. */
+export type QueuePosition = { after: string | null; before: string | null };
+export const firstQueuePage: QueuePosition = { after: null, before: null };
+
+/**
+ * Queue ordering and paging live on the API; separate keys keep unchanged map data mounted.
+ * `scope: "page"` tells the API to skip the cohort and overview a caller already holds.
+ */
+export function dashboardRequest(
+  filters: DashboardFilters,
+  role: DemoRole,
+  today: string,
+  position: QueuePosition = firstQueuePage,
+  scope: "full" | "page" = "full",
+) {
   const q = filters.search.trim();
   const params = new URLSearchParams({
     q,
@@ -52,7 +68,11 @@ export function dashboardRequest(filters: DashboardFilters, role: DemoRole, toda
     direction: filters.sort,
     role,
     today,
+    limit: String(queuePageSize),
+    scope,
   });
+  if (position.after) params.set("after", position.after);
+  if (position.before) params.set("before", position.before);
   const cohortKey = JSON.stringify([q, filters.product]);
   return {
     path: `/dashboard?${params}`,
@@ -60,7 +80,6 @@ export function dashboardRequest(filters: DashboardFilters, role: DemoRole, toda
     overviewKey: JSON.stringify([cohortKey, role, today]),
   };
 }
-
 export function dashboardCohort(
   cases: readonly CaseSummary[],
   filters: DashboardFilters,
@@ -98,7 +117,10 @@ function compareKnown<T extends string | number>(
   return left < right ? -direction : left > right ? direction : 0;
 }
 
-function compareCases(left: CaseSummary, right: CaseSummary, sort: "asc" | "desc"): number {
+/** The ordering keys every queue view shares, and all the slim cohort carries. */
+type OrderedCase = Pick<QueueCohortItem, "launchDate" | "createdAt" | "id">;
+
+export function compareCases<T extends OrderedCase>(left: T, right: T, sort: "asc" | "desc"): number {
   return compareKnown(
     calendarDay(left.launchDate),
     calendarDay(right.launchDate),

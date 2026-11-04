@@ -1,9 +1,60 @@
-.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 0 0 20px; }
+/* Heading, the page's own controls, then the identity menu — one row on every page. */
+.header {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 0 0 14px;
+}
 .identity { min-width: 0; }
+.account { justify-self: end; }
 .back { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--dash-muted); font-size: 12px; }
 .back:hover { color: var(--dash-text); }
 .heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
-.heading h1 { font-size: clamp(21px, 2vw, 28px); font-weight: 550; line-height: 1.3; letter-spacing: -.035em; }
+.heading h1 { font-size: 23px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
 .description { max-width: 75ch; margin-top: 6px; color: var(--dash-muted); font-size: 13px; }
-.controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; flex: none; gap: 10px; }
-@media (max-width: 650px) { .header { flex-wrap: wrap; } .identity { flex: 1 1 230px; } .controls { margin-left: auto; } .heading h1 { font-size: 23px; } }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid var(--dash-border);
+  border-radius: 9px;
+  background: var(--dash-raised);
+  color: var(--dash-muted);
+  transition: border-color .15s;
+}
+.search:hover { border-color: var(--dash-muted); }
+.search:focus-within { border-color: var(--dash-accent); }
+.search input {
+  width: clamp(170px, 17vw, 260px);
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--dash-text);
+  font-size: 13px;
+  outline: none;
+}
+.search input:focus-visible { outline: none; }
+.search input::placeholder { color: var(--dash-muted); opacity: 1; }
+
+/* The controls drop to their own row before the heading has to shrink. */
+@media (max-width: 1180px) {
+  .header { grid-template-columns: minmax(0, 1fr) auto; }
+  .account { grid-column: 2; grid-row: 1; }
+  .actions { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .search { flex: 1 1 220px; }
+  .search input { width: 100%; }
+}
+@media (max-width: 650px) {
+  .heading h1 { font-size: 26px; }
+  .search { flex: 1 1 100%; }
+  .search input { padding: 12px 0; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search { transition: none; }
+}

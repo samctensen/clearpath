@@ -12,56 +12,73 @@
   font-size: 11px;
 }
 
-.context {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px 28px;
-  padding: 21px 0;
-  margin-bottom: 19px;
+/* One band carries the revision control, the check meter and the submission facts. */
+.summary {
+  display: grid;
+  grid-template-columns: 200px minmax(220px, 1fr) minmax(0, 310px);
+  align-items: stretch;
+  gap: 0 22px;
+  padding: 19px 0 20px;
+  margin-bottom: 20px;
   border-block: 1px solid var(--line, #262626);
 }
 
-.metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px 28px;
-}
+.summary > .revisionToolbar { grid-area: 1 / 1; }
+.summary > .coverage { grid-area: 1 / 2; }
+.summary > .metadata { grid-area: 1 / 3; }
+.summary > .coverage, .summary > .metadata { padding-left: 22px; border-left: 1px solid var(--line, #262626); }
+.summaryLabel { width: 100%; color: var(--muted, #999); font-size: 11px; }
 
+.revisionToolbar { display: flex; flex-wrap: wrap; align-content: start; gap: 9px; min-width: 0; }
+.revisionSelect, .compareButton { width: 100%; }
+.returnToCurrent { margin-left: auto; }
+
+.metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 13px 20px; min-width: 0; }
 .metadata > div { min-width: 0; }
 .metadata dt, .referenceVersions dt { color: var(--muted, #999); font-size: 11px; }
 .metadata dd, .referenceVersions dd { margin-top: 3px; color: var(--heading, #ededed); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
-.revisionToolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.revisionSelect { min-width: 176px; }
-.returnToCurrent { margin-left: auto; }
 
-.coverage {
-  margin: 25px 0;
-}
-
-.coverageHeading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
-.coverageTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
-.coverageTitle strong { color: var(--heading, #ededed); font-size: 13px; font-weight: 650; }
+/* Coverage meter: one segment per recorded check; hover or focus names it. */
+.coverage { --tip-half: 103px; min-width: 0; }
+.coverageTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 10px; }
+.coverageTitle strong { color: var(--heading, #ededed); font-size: 12.5px; font-weight: 650; }
 .coverageTitle > span { color: var(--muted, #999); font-size: 11px; }
+.coverageEmpty { margin-top: 13px; color: var(--muted, #999); font-size: 12px; }
 .coverageFinding { color: var(--dash-info); }
 .coverageUnknown { color: var(--dash-waiting); }
 .coveragePassed { color: var(--dash-approved); }
-.coverageNotApplicable { color: #999; }
-.coverageLegend { display: flex; flex-wrap: wrap; gap: 7px 20px; margin: 0; padding: 0; color: var(--muted, #999); font-size: 11px; list-style: none; }
+.coverageNotApplicable { color: #6f6f6f; }
+
+.meter { position: relative; display: flex; align-items: center; gap: 3px; margin-top: 7px; }
+.meterSegment { display: flex; align-items: center; flex: 1 1 0; min-width: 10px; height: 26px; padding: 0; border: 0; border-radius: 4px; background: transparent; }
+.meterSegment > span { width: 100%; height: 9px; border-radius: 3px; background: currentColor; opacity: .72; transition: opacity 140ms ease, height 140ms ease; }
+.meterSegment:hover > span, .meterSegmentActive > span { height: 15px; opacity: 1; }
+.meterSegment:focus-visible { outline-offset: 2px; }
+
+.meterTip {
+  position: absolute;
+  top: calc(100% + 7px);
+  z-index: 4;
+  width: calc(var(--tip-half) * 2);
+  padding: 9px 11px;
+  border: 1px solid #3a3a3a;
+  border-radius: 9px;
+  background: var(--dash-raised, #181818);
+  box-shadow: 0 12px 26px #000000a8;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.meterTipName { display: block; color: var(--heading, #ededed); font-size: 12px; font-weight: 600; line-height: 1.45; }
+.meterTip .coverageOutcome { margin-top: 6px; }
+
+.coverageOutcome { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.coverageOutcome > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.coverageLegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; color: var(--muted, #999); font-size: 11px; list-style: none; }
 .coverageLegend li { display: flex; align-items: center; gap: 5px; }
+.coverageLegend li[data-zero="true"] { opacity: .55; }
 .coverageLegend li > span { width: 5px; height: 5px; margin-right: 2px; border-radius: 50%; background: currentColor; }
 .coverageLegend strong { color: #d4d4d4; font-weight: 650; font-variant-numeric: tabular-nums; }
-.coverageChecks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 25px; list-style: none; padding: 0; margin: 17px 0 0; border-top: 1px solid var(--line, #262626); }
-.coverageChecks > li { min-width: 0; border-bottom: 1px solid var(--line, #262626); }
-.coverageChecks button { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 5px 12px; width: 100%; height: 100%; min-height: 65px; padding: 12px 2px; border: 0; background: transparent; text-align: left; }
-.coverageCheckName { grid-column: 1; color: #cfcfcf; font-size: 12px; line-height: 1.45; font-weight: 550; overflow-wrap: anywhere; }
-.coverageOutcome { grid-column: 1; display: flex; align-items: center; gap: 6px; font-size: 11px; }
-.coverageOutcome > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.coverageArrow { grid-column: 2; grid-row: 1 / 3; color: #777; }
-.coverageChecks button:hover .coverageCheckName, .coverageChecks button:focus-visible .coverageCheckName { color: #fff; }
-.coverageChecks button:hover .coverageArrow { color: var(--dash-accent); }
-.coverageChecks button:focus-visible { outline-offset: -2px; }
 
 .reviewWorkspace {
   display: grid;
@@ -201,8 +218,11 @@
   .reviewWorkspace { grid-template-columns: minmax(0, 1fr) minmax(340px, 1fr); }
   .document, .reference { padding-inline: 24px; }
   .copyText { font-size: 15px; }
-  .coverageLegend { gap: 7px 13px; }
-  .metadata { gap: 14px 22px; }
+  .summary { grid-template-columns: 180px minmax(190px, 1fr) minmax(0, 268px); gap: 0 18px; }
+  .summary > .coverage, .summary > .metadata { padding-left: 18px; }
+  .coverage { --tip-half: 95px; }
+  .coverageLegend { gap: 6px 13px; }
+  .metadata { gap: 12px 16px; }
 }
 
 @media (max-width: 980px) {
@@ -213,22 +233,27 @@
   .decisionSection { border-bottom-left-radius: 12px; }
   .copyText { font-size: 16px; }
   .loadingCopy { border-right: 0; border-bottom: 1px solid var(--line, #262626); }
+  .summary { grid-template-columns: minmax(0, 210px) minmax(0, 1fr); gap: 0 20px; }
+  .summary > .coverage { grid-area: 1 / 2; padding-left: 20px; }
+  .summary > .metadata { grid-area: 2 / 1 / 3 / -1; padding: 17px 0 0; border-top: 1px solid var(--line, #262626); border-left: 0; }
+  .metadata { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 20px; }
 }
 
 @media (max-width: 640px) {
-  .context { margin-bottom: 17px; padding-block: 18px; gap: 20px; }
-  .metadata { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 18px; }
+  .summary { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 17px; padding-block: 17px 18px; }
+  .summary > .revisionToolbar { grid-area: 1 / 1; }
+  .summary > .coverage { grid-area: 2 / 1; padding: 16px 0 0; border-top: 1px solid var(--line, #262626); border-left: 0; }
+  .summary > .metadata { grid-area: 3 / 1; padding: 16px 0 0; }
+  .metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 18px; }
   .metadata dd { font-size: 12px; }
-  .revisionToolbar { width: 100%; }
-  .revisionSelect { flex: 1 1 100%; }
   .revisionToolbar > :global(.button) { min-height: 44px; }
   .returnToCurrent { width: 100%; margin-left: 0; }
   .casePage :global(.notice) { flex-wrap: wrap; }
   .casePage :global(.notice) > div { flex: 1; min-width: 190px; }
-  .coverage { margin-block: 21px; }
+  .coverage { --tip-half: 86px; }
   .coverageTitle { justify-content: space-between; width: 100%; }
   .coverageLegend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 12px; }
-  .coverageChecks { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+  .meterSegment { height: 34px; }
   .document { padding: 21px 19px 0; }
   .documentHeading { align-items: flex-start; }
   .documentMeta { width: 100%; }
@@ -257,4 +282,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .loadingContext > span, .loadingCopy > span, .loadingEvidence span { animation: none; }
+  .meterSegment > span { transition: none; }
 }

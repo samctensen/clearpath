@@ -42,8 +42,38 @@ Deno.test("dashboard requests encode literal searches and send sorting to the AP
   url.searchParams.forEach((value, key) => { query[key] = value; });
   assertEquals(query, {
     q: "50% + A&B_", product: "card", status: "approved", sort: "launchDate",
-    direction: "desc", role: "submitter", today: "2026-11-04",
+    direction: "desc", role: "submitter", today: "2026-11-04", limit: "10", scope: "full",
   });
+});
+
+Deno.test("queue cursors travel in the URL while the map and overview keys stay put", () => {
+  const first = dashboardRequest(defaultDashboardFilters, "reviewer", "2026-11-04");
+  const next = dashboardRequest(
+    defaultDashboardFilters,
+    "reviewer",
+    "2026-11-04",
+    { after: "cursor-two", before: null },
+    "page",
+  );
+  const forward = new URL(next.path, "http://clearpath.test").searchParams;
+  assertEquals(forward.get("after"), "cursor-two");
+  assertEquals(forward.get("before"), null);
+  assertEquals(forward.get("scope"), "page");
+  assertEquals(forward.get("limit"), "10");
+  assertEquals(first.path === next.path, false);
+  // Walking pages must not invalidate the chart or the overview the client already holds.
+  assertEquals(first.cohortKey, next.cohortKey);
+  assertEquals(first.overviewKey, next.overviewKey);
+  const back = dashboardRequest(
+    defaultDashboardFilters,
+    "reviewer",
+    "2026-11-04",
+    { after: null, before: "cursor-two" },
+    "page",
+  );
+  const backward = new URL(back.path, "http://clearpath.test").searchParams;
+  assertEquals(backward.get("before"), "cursor-two");
+  assertEquals(backward.get("after"), null);
 });
 
 Deno.test("queue-only filters keep map identity while role and search invalidate the right data", () => {

@@ -101,9 +101,10 @@
   color: var(--dash-text);
   font-size: 12.5px;
   font-weight: 600;
-  transition: border-color .15s;
+  transition: border-color .15s, background-color .15s;
 }
-.userTrigger:hover, .userTrigger[aria-expanded="true"] { border-color: var(--dash-accent); }
+.userTrigger:hover { border-color: #363636; background: #242424; }
+.userTrigger[aria-expanded="true"] { border-color: var(--dash-accent); }
 .shell .userTrigger[aria-expanded="false"]:focus-visible { outline: none; border-color: var(--dash-muted); }
 .userPanel {
   position: absolute;

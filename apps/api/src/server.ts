@@ -11,8 +11,10 @@ import {
   submissionSchema,
   success,
 } from "@clearpath/contracts";
-import type { SeedPlan, Store } from "@clearpath/models";
+import type { Store } from "@clearpath/models";
+import { policyRules } from "../../../packages/checks/policies.ts";
 import { type AiReviewProvider, AiReviewProviderError } from "./ai-review.ts";
+import { buildSeedPlans } from "./seed.ts";
 
 type Dependencies = {
   store: Store;
@@ -57,53 +59,7 @@ class AiReviewQuotaError extends Error {}
 class AiReviewUnavailableError extends Error {}
 
 async function seedWorkspace(deps: Dependencies): Promise<string> {
-  const samples = deps.offers.flatMap((offer, i) =>
-    [0, 1].map((variant) => ({
-      title: `${offer.name} — ${variant ? "partner email" : "campaign page"}`,
-      productId: offer.productId,
-      offerId: offer.id,
-      content: variant && i === 0 ? "0% intro APR on purchases. Apply today." : offer.approvedCopy,
-      format: variant ? "email" as const : "landing_page" as const,
-      publisher: variant ? "Northstar Media" : "ClearPath Studio",
-      launchDate: "2026-11-15",
-      completeAsset: !(i === 1 && variant === 1),
-      linksToApplication: null,
-      substantiation: "",
-    }))
-  );
-  const plans: SeedPlan[] = samples.map((input, i) => {
-    const analysis = deps.analyze(input);
-    if (i === 1) {
-      return {
-        input,
-        analysis,
-        decision: {
-          decision: "request_changes",
-          note: "Please add the promotional terms.",
-          dispositions: [],
-        },
-      };
-    }
-    if (i === 4) {
-      return {
-        input,
-        analysis,
-        decision: {
-          decision: "approve",
-          note: "Approved for this demo.",
-          dispositions: analysis.checks.filter((c) =>
-            c.status === "finding" || c.status === "unknown"
-          ).map((check) => ({
-            ruleId: check.ruleId,
-            action: "dismissed" as const,
-            reason: "Reviewed for this fictional example.",
-          })),
-        },
-      };
-    }
-    return { input, analysis };
-  });
-  const result = await deps.store.createSeededWorkspace(plans);
+  const result = await deps.store.createSeededWorkspace(buildSeedPlans(deps.offers, deps.analyze));
   if (!result.ok) throw new Error("Unable to seed workspace");
   return result.value;
 }
@@ -222,6 +178,11 @@ export async function createApiServer(deps: Dependencies) {
   const caseId = (req: any) => req.params.id as string;
   app.get("/api/health", () => ({ ok: true, storage: deps.store.storage }));
   app.get("/api/catalog", () => ({ offers: deps.offers, policyVersion: deps.policyVersion }));
+  app.get("/api/policies", () => ({ policyVersion: deps.policyVersion, rules: policyRules }));
+  app.get("/api/decisions", async (req, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    return await deps.store.listDecisions(ws(req));
+  });
   app.post("/api/analyze", async (req, reply) => {
     const input = parse(submissionSchema, req.body, reply);
     if (input) return deps.analyze(input);

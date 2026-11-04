@@ -82,20 +82,35 @@ export interface Activity {
   revision: number;
   createdAt: string;
 }
-export interface CaseSummary {
+/**
+ * The fields the review map and the overview need. Paging the queue must not cost a
+ * findings scan over every matching case, so the cohort carries only these.
+ */
+export interface QueueCohortItem {
   id: string;
   title: string;
+  launchDate: string;
+  status: CaseStatus;
+  createdAt: string;
+}
+export interface CaseSummary extends QueueCohortItem {
   productId: ProductId;
   publisher: string;
   format: AssetFormat;
-  launchDate: string;
-  status: CaseStatus;
   revision: number;
   findings: number;
   unknowns: number;
-  createdAt: string;
   updatedAt: string;
 }
+// Rejected at the boundary, so a tampered or stale cursor is a 400 and never a 500.
+const cursorValue = z.string().min(1).max(512).refine((value) => {
+  try {
+    decodeQueueCursor(value);
+    return true;
+  } catch {
+    return false;
+  }
+}, { message: "Invalid queue cursor" });
 export const dashboardQuerySchema = z.object({
   q: z.string().trim().max(200).default(""),
   product: z.enum(["all", ...productIds]).default("all"),
@@ -104,21 +119,80 @@ export const dashboardQuerySchema = z.object({
   direction: z.enum(["asc", "desc"]).default("asc"),
   role: z.enum(["reviewer", "submitter"]).default("reviewer"),
   today: submissionSchema.shape.launchDate.default(() => new Date().toISOString().slice(0, 10)),
-}).strict();
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  /** Keyset cursors. `after` walks forward, `before` walks back; never both. */
+  after: cursorValue.optional(),
+  before: cursorValue.optional(),
+  /** `page` skips the cohort and overview work for a client that already holds them. */
+  scope: z.enum(["full", "page"]).default("full"),
+}).strict().refine((value) => !(value.after && value.before), {
+  message: "Use either after or before, not both",
+  path: ["after"],
+});
 export type DashboardQuery = z.infer<typeof dashboardQuerySchema>;
+
+/** Position of one page inside the filtered queue, counted exactly by the same query. */
+export interface QueuePage {
+  total: number;
+  /** 1-based inclusive bounds of the rows on this page; 0 when the page is empty. */
+  from: number;
+  to: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+  startCursor: string | null;
+  endCursor: string | null;
+}
+export interface DashboardOverview {
+  total: number;
+  openCount: number;
+  counts: Record<CaseStatus, number>;
+  actionable: QueueCohortItem[];
+  nextLaunchDate: string | null;
+  overdueCount: number;
+}
 export interface DashboardResponse {
   rows: CaseSummary[];
-  /** Search/product cohort before the queue-only status filter. */
-  cohort: CaseSummary[];
+  page: QueuePage;
+  /** Search/product cohort before the queue-only status filter; null under `scope=page`. */
+  cohort: QueueCohortItem[] | null;
   workspaceTotal: number;
-  overview: {
-    total: number;
-    openCount: number;
-    counts: Record<CaseStatus, number>;
-    actionable: CaseSummary[];
-    nextLaunchDate: string | null;
-    overdueCount: number;
-  };
+  overview: DashboardOverview | null;
+}
+
+/** Opaque to callers, so the ordering key can change without breaking saved links. */
+export interface QueueCursor {
+  /** The sort key of the row, or null when that row sorts into the NULLS LAST tail. */
+  key: string | null;
+  createdAt: string;
+  id: string;
+}
+const queueCursorSchema = z.object({
+  key: z.string().nullable(),
+  createdAt: z.string().min(1),
+  id: z.string().min(1),
+}).strict();
+
+export function encodeQueueCursor(cursor: QueueCursor): string {
+  const json = JSON.stringify([cursor.key, cursor.createdAt, cursor.id]);
+  const bytes = new TextEncoder().encode(json);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Throws on anything we did not issue, so a stale link fails loudly instead of silently resetting. */
+export function decodeQueueCursor(value: string): QueueCursor {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  let parsed: unknown;
+  try {
+    const binary = atob(padded + "=".repeat((4 - padded.length % 4) % 4));
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const [key, createdAt, id] = JSON.parse(new TextDecoder().decode(bytes));
+    parsed = { key, createdAt, id };
+  } catch {
+    throw new Error("Invalid queue cursor");
+  }
+  const cursor = queueCursorSchema.safeParse(parsed);
+  if (!cursor.success) throw new Error("Invalid queue cursor");
+  return cursor.data;
 }
 export interface CaseDetail {
   case: CaseSummary;
@@ -127,6 +201,34 @@ export interface CaseDetail {
   manualFindings: ManualFinding[];
   events: Activity[];
 }
+/** An immutable decision, described using the revision it actually reviewed. */
+export interface DecisionRecord {
+  id: string;
+  caseId: string;
+  revision: number;
+  currentRevision: number;
+  title: string;
+  productId: ProductId;
+  publisher: string;
+  decision: "approve" | "request_changes";
+  feedback: string;
+  actor: string;
+  createdAt: string;
+  policyVersion: string;
+  offerVersion: string | null;
+}
+export interface PolicyRule {
+  id: string;
+  title: string;
+  summary: string;
+  products: ProductId[];
+  reference: CheckResult["reference"];
+  appliesWhen: string;
+  prepare: string[];
+  limits: string;
+  example: { attention: string; better: string; explanation: string };
+}
+export interface PolicyGuideData { policyVersion: string; rules: PolicyRule[] }
 export interface DeleteCaseResult {
   deleted: true;
   id: string;

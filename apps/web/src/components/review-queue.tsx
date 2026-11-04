@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId } from "@clearpath/contracts";
 import { useDashboard } from "@/lib/use-dashboard";
-import { dashboardStatuses, defaultDashboardFilters, parseDashboardFilters, type DashboardFilters, type DashboardStatus } from "@/lib/dashboard";
-import { useChangeDemoRole, useDemoRole } from "./workspace";
+import { dashboardStatuses, defaultDashboardFilters, firstQueuePage, parseDashboardFilters, type DashboardFilters, type DashboardStatus, type QueuePosition } from "@/lib/dashboard";
+import { useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
-import { DashboardUserMenu } from "./dashboard/dashboard-user-menu";
 import { ReviewMap } from "./dashboard/review-map";
 import { QueueRowsLoading, ReviewMapLoading, UpNextLoading } from "./dashboard/dashboard-loading";
 import { CustomSelect } from "./ui/custom-select";
+import { HeaderSearch, PageHeader } from "./ui/page-header";
 import { QueueRowActions } from "./dashboard/queue-row-actions";
 import { QueueActionDialog, type QueueAction } from "./dashboard/queue-action-dialog";
 import actionStyles from "./dashboard/queue-row-actions.module.css";
@@ -37,11 +37,11 @@ function Status({ status }: { status: CaseStatus }) {
 
 export function ReviewQueue() {
   const role = useDemoRole();
-  const changeRole = useChangeDemoRole();
   const [filters, setFilters] = useState<DashboardFilters>(defaultDashboardFilters);
   const [restored, setRestored] = useState(false);
   const [today, setToday] = useState("");
-  const resource = useDashboard(filters, role, today, restored && Boolean(today));
+  const [position, setPosition] = useState<QueuePosition>(firstQueuePage);
+  const resource = useDashboard(filters, role, today, restored && Boolean(today), position);
   const queueHeading = useRef<HTMLHeadingElement>(null);
   const [action, setAction] = useState<{ kind: QueueAction; caseId: string; title: string; trigger: HTMLButtonElement | null; role: typeof role } | null>(null);
   const [actionNotice, setActionNotice] = useState("");
@@ -71,10 +71,19 @@ export function ReviewQueue() {
     }
   }, [filters, restored]);
 
-  const update = (patch: Partial<DashboardFilters>) => setFilters(current => ({ ...current, ...patch }));
+  // Any change to the query invalidates the cursor, so every filter change returns to page one.
+  const update = (patch: Partial<DashboardFilters>) => {
+    setFilters(current => ({ ...current, ...patch }));
+    setPosition(firstQueuePage);
+  };
+  const resetFilters = () => {
+    setFilters({ ...defaultDashboardFilters });
+    setPosition(firstQueuePage);
+  };
   const cohort = resource.cohort;
   const overview = resource.overview;
   const rows = resource.rows ?? [];
+  const page = resource.page;
   const workspaceTotal = resource.workspaceTotal ?? 0;
   const actionableCount = overview ? overview.counts[role === "reviewer" ? "ready_for_review" : "changes_requested"] + overview.counts.needs_information : 0;
   const scoped = filters.product !== "all" || filters.search.trim() !== "";
@@ -84,15 +93,11 @@ export function ReviewQueue() {
   const toggleSort = () => update({ sort: filters.sort === "asc" ? "desc" : "asc" });
 
   return <div className={styles.dashboard}>
-    <header className={styles.toolbar}>
-      <h1>Review desk</h1>
-      <div className={styles.scopeControls}>
-        <label className={styles.search}><Icon name="magnifying-glass" size={15} /><span className="sr-only">Search campaigns or publishers</span><input type="search" maxLength={200} placeholder="Search campaigns or publishers" value={filters.search} onChange={event => update({ search: event.target.value })} /></label>
-        <CustomSelect className={styles.product} label="Filter by product" value={filters.product} options={productOptions} onChange={product => update({ product: product as ProductId | "all" })} />
-        <Link href="/new" className={styles.primary}><Icon name="plus" size={14} />New submission</Link>
-      </div>
-      <div className={styles.userControl}><DashboardUserMenu role={role} onRoleChange={changeRole} /></div>
-    </header>
+    <PageHeader title="Review desk" actions={<>
+      <HeaderSearch label="Search campaigns or publishers" placeholder="Search campaigns or publishers" maxLength={200} value={filters.search} onChange={search => update({ search })} />
+      <CustomSelect className={styles.product} label="Filter by product" value={filters.product} options={productOptions} onChange={product => update({ product: product as ProductId | "all" })} />
+      <Link href="/new" className={styles.primary}><Icon name="plus" size={14} />New submission</Link>
+    </>} />
 
     {failed && <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load submissions</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div>}
       <div className={styles.overviewGrid}>
@@ -111,7 +116,7 @@ export function ReviewQueue() {
       {scoped && <p className={styles.cohortNote}>Chart and queue reflect your search and product filters.</p>}
 
       <section id="submissions" className={styles.queue} aria-labelledby="queue-title" aria-busy={loading}>
-        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Your submissions"}</h2>{!loading && !failed && <span>{rows.length}</span>}</div><div className={styles.queueControls}>
+        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Your submissions"}</h2>{!loading && !failed && <span>{page.total}</span>}</div><div className={styles.queueControls}>
           <CustomSelect className={styles.statusFilter} label="Filter queue by status" value={filters.status} options={statusOptions} onChange={status => update({ status: status as DashboardStatus })} />
           <button type="button" className={styles.sortButton} onClick={toggleSort} aria-label={filters.sort === "asc" ? "Sort latest target first" : "Sort earliest target first"}><Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={12} />Target date</button>
         </div></div>
@@ -119,20 +124,29 @@ export function ReviewQueue() {
         {loading || rows.length ? <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">Copy checks</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th><th scope="col" className={styles.rowActions}><span className="sr-only">Actions</span></th></tr></thead>
           {loading ? <QueueRowsLoading /> : <tbody>{rows.map(item => <tr key={item.id} className={styles.queueRow}>
-            <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span><Icon name="arrow-right" size={13} className={styles.rowArrow} /></Link></td>
+            <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
             <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unknown</small>}</div></td>
             <td data-label="Target date" className={styles.date}>{targetLabel(item.launchDate)}</td>
             <td data-label="Status"><Status status={item.status} /></td>
             <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} status={item.status} role={role} onAction={(kind, trigger) => { setActionNotice(""); setAction({ kind, caseId: item.id, title: item.title, trigger, role }); }} /></td>
           </tr>)}</tbody>}
-        </table></div> : failed ? <div className={styles.empty}><Icon name="circle-exclamation" size={24} /><h3>Submissions are unavailable</h3><p>Try loading again to see the queue. Your filters are saved.</p></div> : <div className={styles.empty}><Icon name={workspaceTotal ? "magnifying-glass" : "file-lines"} size={27} /><h3>{workspaceTotal ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{workspaceTotal ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{workspaceTotal ? <button type="button" className={styles.secondary} onClick={() => setFilters({ ...defaultDashboardFilters })}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
-        <footer className={styles.queueFooter}><span>{loading ? "Loading submissions…" : failed ? "Queue unavailable" : <>Showing {rows.length} of {cohort?.length ?? 0} {scoped ? "matching " : ""}submissions{scoped && ` · ${workspaceTotal} in workspace`}</>}</span>{(scoped || filters.status !== "all") && <button type="button" onClick={() => setFilters({ ...defaultDashboardFilters })}>Reset filters</button>}<span className={styles.checkNote}>Copy checks are automated findings, not all review concerns.</span></footer>
+        </table></div> : failed ? <div className={styles.empty}><Icon name="circle-exclamation" size={24} /><h3>Submissions are unavailable</h3><p>Try loading again to see the queue. Your filters are saved.</p></div> : <div className={styles.empty}><Icon name={workspaceTotal ? "magnifying-glass" : "file-lines"} size={27} /><h3>{workspaceTotal ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{workspaceTotal ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{workspaceTotal ? <button type="button" className={styles.secondary} onClick={resetFilters}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
+        <footer className={styles.queueFooter}>
+          <span role="status">{loading ? "Loading submissions…" : failed ? "Queue unavailable" : page.total === 0 ? "No submissions in this view" : <>Showing {page.from}–{page.to} of {page.total} {scoped ? "matching " : ""}submissions{scoped && ` · ${workspaceTotal} in workspace`}</>}</span>
+          {!failed && (page.hasPrev || page.hasNext) && <div className={styles.pager}>
+            <button type="button" className={styles.pagerStep} aria-label="Previous page" disabled={!page.hasPrev || loading} onClick={() => setPosition({ after: null, before: page.startCursor })}><Icon name="arrow-left" size={12} /></button>
+            <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!page.hasNext || loading} onClick={() => setPosition({ after: page.endCursor, before: null })}><Icon name="arrow-right" size={12} /></button>
+          </div>}
+          {(scoped || filters.status !== "all") && <button type="button" onClick={resetFilters}>Reset filters</button>}
+          <span className={styles.checkNote}>Copy checks are automated findings, not all review concerns.</span>
+        </footer>
       </section>
       {action && <QueueActionDialog key={`${action.caseId}:${action.kind}`} caseId={action.caseId} title={action.title} action={action.kind} role={action.role} currentRole={role} onClose={closeAction} onSuccess={message => {
         setAction(null);
         setActionNotice(message);
         queueHeading.current?.focus({ preventScroll: true });
+        setPosition(firstQueuePage);
         resource.reload();
       }} />}
       <div className={actionNotice ? actionStyles.notice : "sr-only"} role="status" aria-atomic="true">{actionNotice}</div>

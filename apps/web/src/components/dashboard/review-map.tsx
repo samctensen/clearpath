@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatLabels, productLabels, statusLabels, type CaseStatus, type CaseSummary } from "@clearpath/contracts";
+import { statusLabels, type CaseStatus, type QueueCohortItem } from "@clearpath/contracts";
 import { buildReviewMap } from "@/lib/review-map";
 import { DashboardIcon } from "./dashboard-icon";
 import styles from "./review-map.module.css";
 
 type ReviewMapProps = {
-  cases: CaseSummary[];
+  cases: QueueCohortItem[];
   selected: CaseStatus | "all";
   onSelect: (status: CaseStatus) => void;
   preferredCaseId?: string;
@@ -128,7 +128,7 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
         <div className={styles.titleBlock}>
           <h2 id="review-map-title" className={styles.title}>Review map</h2>
           <p className={styles.subtitle}>
-            Each dot is a submission, grouped by current status.
+            Each marker is a submission, grouped by current status.
             {plotted < model.total && ` Showing ${plotted} of ${model.total}; the rest are in the queue.`}
           </p>
         </div>
@@ -240,13 +240,12 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
               <i className={`${styles.recordDot} ${statusClass[active.status]}`} aria-hidden="true" />
               <strong>{active.title}</strong>
             </p>
+            {/* The cohort is deliberately slim, so product, revision and finding counts
+                live on the case page rather than being guessed at here. */}
             <dl className={styles.meta}>
               <div><dt>Status</dt><dd>{statusLabels[active.status]}</dd></div>
-              <div><dt>Product</dt><dd>{productLabels[active.productId]} · {formatLabels[active.format]}</dd></div>
-              <div><dt>Revision</dt><dd>Rev {active.revision}</dd></div>
               <div><dt>Target</dt><dd>{targetLabel(active.launchDate)}</dd></div>
-              <div><dt>Findings</dt><dd>{active.findings}</dd></div>
-              <div><dt>Unknowns</dt><dd>{active.unknowns}</dd></div>
+              <div><dt>Submitted</dt><dd>{targetLabel(active.createdAt.slice(0, 10))}</dd></div>
             </dl>
           </div>
           <Link ref={openRef} className={styles.open} href={`/cases/${encodeURIComponent(active.id)}`} aria-label={`Open review: ${active.title}`}>

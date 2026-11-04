@@ -23,20 +23,23 @@ const emptyInput: SubmissionInput = {
 };
 
 export function NewSubmission() {
-  const exampleId = useSearchParams().get("example");
+  const searchParams = useSearchParams();
+  const exampleId = searchParams.get("example");
+  const requestedProduct = searchParams.get("product");
+  const productId = productIds.find((product) => product === requestedProduct) ?? "unknown";
   const catalog = useResource<CatalogData>("/catalog");
 
   return (
     <div className={styles.page}>
       <PageHeader title="New submission" description="Prepare campaign copy for review." back={{ href: "/", label: "Review queue" }} />
-      <NewSubmissionDraft key={exampleId ?? "blank"} exampleId={exampleId} catalog={catalog} />
+      <NewSubmissionDraft key={exampleId ?? productId} exampleId={exampleId} productId={productId} catalog={catalog} />
     </div>
   );
 }
 
 type CatalogResource = Pick<ReturnType<typeof useResource<CatalogData>>, "data" | "loading" | "error" | "reload">;
 
-function NewSubmissionDraft({ exampleId, catalog }: { exampleId: string | null; catalog: CatalogResource }) {
+function NewSubmissionDraft({ exampleId, productId, catalog }: { exampleId: string | null; productId: ProductId; catalog: CatalogResource }) {
   const router = useRouter();
   const [startingInput, setStartingInput] = useState<SubmissionInput | null>(null);
 
@@ -45,8 +48,8 @@ function NewSubmissionDraft({ exampleId, catalog }: { exampleId: string | null; 
   useEffect(() => {
     if (catalog.loading || startingInput !== null || (exampleId && !catalog.data)) return;
     const offer = catalog.data?.offers.find((candidate) => candidate.id === exampleId);
-    setStartingInput(offer ? { ...emptyInput, productId: offer.productId, offerId: offer.id, content: offer.approvedCopy } : emptyInput);
-  }, [catalog.data, catalog.loading, exampleId, startingInput]);
+    setStartingInput(offer ? { ...emptyInput, productId: offer.productId, offerId: offer.id, content: offer.approvedCopy } : { ...emptyInput, productId });
+  }, [catalog.data, catalog.loading, exampleId, productId, startingInput]);
 
   if (startingInput === null) {
     const exampleError = exampleId ? catalog.error : "";

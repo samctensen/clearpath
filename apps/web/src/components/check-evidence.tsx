@@ -1,6 +1,7 @@
 import type { Analysis, CheckResult } from "@clearpath/contracts";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 const checkLabels = {
   passed: "Passed",
@@ -61,6 +62,7 @@ export function CheckEvidence({ check, children, onShowExcerpt, change }: {
         {check.reference.url ? (
           <a href={check.reference.url} target="_blank" rel="noreferrer">{check.reference.label}<DashboardIcon name="arrow-up-right" size={13} aria-hidden="true" /></a>
         ) : <span>{check.reference.label}</span>}
+        <Link href={`/policies#${encodeURIComponent(check.ruleId)}`}>Check guidance<DashboardIcon name="arrow-right" size={11} /></Link>
       </div>
       {children}
     </article>

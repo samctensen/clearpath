@@ -9,8 +9,13 @@ import {
   type CaseSummary,
   type DashboardQuery,
   type DashboardResponse,
+  type DecisionRecord,
+  decodeQueueCursor,
+  encodeQueueCursor,
   type DeleteCaseResult,
   failure,
+  type QueueCohortItem,
+  type QueuePage,
   type Result,
   type SubmissionInput,
   success,
@@ -32,7 +37,7 @@ type DB = {
   transaction<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 };
-const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_soft_delete_cases.sql"];
+const migrations = ["001_initial.sql", "002_ai_reviews.sql", "003_queue_paging.sql", "003_soft_delete_cases.sql"];
 class AiReviewBudgetExceeded extends Error {}
 const id = () => crypto.randomUUID();
 const iso = (date: unknown) => new Date(date as string).toISOString();
@@ -461,6 +466,34 @@ export class Store {
       throw error;
     }
   }
+  async listDecisions(workspace: string): Promise<DecisionRecord[]> {
+    const rows = await this.db.query(`
+      SELECT d.id, d.case_id, d.revision, d.decision, d.created_at,
+        c.revision AS current_revision,
+        r.input->>'title' AS title, r.input->>'productId' AS product_id,
+        r.input->>'publisher' AS publisher,
+        r.analysis->>'policyVersion' AS policy_version,
+        r.analysis->>'offerVersion' AS offer_version,
+        COALESCE(e.message, d.note) AS feedback, COALESCE(e.actor, 'reviewer') AS actor
+      FROM decisions d
+      JOIN cases c ON c.id = d.case_id
+      JOIN revisions r ON r.case_id = d.case_id AND r.number = d.revision
+      LEFT JOIN LATERAL (
+        SELECT message, actor FROM events
+        WHERE case_id = d.case_id AND revision = d.revision
+          AND type = CASE WHEN d.decision = 'approve' THEN 'approved' ELSE 'changes_requested' END
+        ORDER BY sequence DESC LIMIT 1
+      ) e ON true
+      WHERE c.workspace_id = $1
+      ORDER BY d.created_at DESC, d.id DESC`, [workspace]);
+    return rows.map((row) => ({
+      id: row.id, caseId: row.case_id, revision: row.revision,
+      currentRevision: row.current_revision, title: row.title,
+      productId: row.product_id, publisher: row.publisher, decision: row.decision,
+      feedback: row.feedback, actor: row.actor, createdAt: iso(row.created_at),
+      policyVersion: row.policy_version, offerVersion: row.offer_version,
+    }));
+  }
   async listCases(workspace: string): Promise<CaseSummary[]> {
     const rows = await this.db.query(
       `
@@ -491,20 +524,54 @@ export class Store {
   }
   async dashboard(workspace: string, query: DashboardQuery): Promise<DashboardResponse> {
     // Only allowlisted SQL identifiers/directions are interpolated. User values stay parameters.
-    const orderColumn = { launchDate: "calendar_day", title: "lower(title) COLLATE \"C\"", updatedAt: "updated_at" }[query.sort];
-    const direction = query.direction === "desc" ? "DESC" : "ASC";
+    const sortKey = { launchDate: "calendar_day", title: "sort_title", updatedAt: "updated_at" }[query.sort];
+    const keyCast = query.sort === "updatedAt" ? "timestamptz" : "text";
+    const ascending = query.direction !== "desc";
+    const back = query.before !== undefined;
+    const token = query.before ?? query.after;
+    const cursor = token === undefined ? null : decodeQueueCursor(token);
+    const params: unknown[] = [workspace, query.q, query.product, query.status, query.limit + 1];
+
+    // Rows sort by key (NULLS LAST), then creation and ID, so every page boundary is unique.
+    let pageWhere = "TRUE";
+    let passedWhere = "FALSE";
+    if (cursor) {
+      const key = `$${params.push(cursor.key)}::${keyCast}`;
+      const keyIsNull = `$${params.push(cursor.key === null)}::boolean`;
+      const created = `$${params.push(cursor.createdAt)}::timestamptz`;
+      const id = `$${params.push(cursor.id)}::text`;
+      const side = (nulls: string, compare: string, tie: string) =>
+        `COALESCE(
+          (${sortKey} IS NULL) ${nulls} ${keyIsNull}
+          OR ((${sortKey} IS NULL) = ${keyIsNull} AND (
+            (${keyIsNull} = false AND ${sortKey} ${compare} ${key})
+            OR ((${keyIsNull} = true OR ${sortKey} = ${key})
+              AND (created_at ${tie} ${created} OR (created_at = ${created} AND id ${tie} ${id})))
+          )), false)`;
+      const afterCursor = side(">", ascending ? ">" : "<", ">");
+      const beforeCursor = side("<", ascending ? "<" : ">", "<");
+      pageWhere = back ? beforeCursor : afterCursor;
+      // Rows this page skipped: at or before the cursor going forward, strictly before it going back.
+      passedWhere = back ? beforeCursor : `NOT (${afterCursor})`;
+    }
+    const pageOrder = back
+      ? `(${sortKey} IS NULL) DESC, ${sortKey} ${ascending ? "DESC" : "ASC"}, created_at DESC, id DESC`
+      : `(${sortKey} IS NULL) ASC, ${sortKey} ${ascending ? "ASC" : "DESC"}, created_at ASC, id ASC`;
+    const cohortJson = query.scope === "page" ? "NULL::jsonb" : `COALESCE((
+        SELECT jsonb_agg(to_jsonb(slim) ORDER BY slim.calendar_day ASC NULLS LAST, slim.created_at ASC, slim.id ASC)
+        FROM (SELECT id, status, created_at, title, launch_date, calendar_day FROM cohort) slim
+      ), '[]'::jsonb)`;
+
     const [result] = await this.db.query(`
       WITH matching AS (
-        SELECT c.id, c.status, c.revision, c.created_at, c.updated_at,
-          r.input->>'title' AS title, r.input->>'productId' AS product_id,
-          r.input->>'publisher' AS publisher, r.input->>'format' AS format,
-          r.input->>'launchDate' AS launch_date, r.analysis
+        SELECT c.id, c.status, c.created_at, c.updated_at,
+          r.input->>'title' AS title, r.input->>'launchDate' AS launch_date
         FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
         WHERE c.workspace_id = $1 AND c.deleted_at IS NULL
           AND ($2 = '' OR strpos(lower((r.input->>'title') || ' ' || (r.input->>'publisher')), lower($2)) > 0)
           AND ($3 = 'all' OR r.input->>'productId' = $3)
       ), cohort AS MATERIALIZED (
-        SELECT id, status, revision, created_at, updated_at, title, product_id, publisher, format, launch_date,
+        SELECT id, status, created_at, updated_at, title, launch_date,
           CASE WHEN launch_date ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$' THEN
             CASE WHEN substring(launch_date, 9, 2)::int <= CASE substring(launch_date, 6, 2)
               WHEN '02' THEN CASE WHEN substring(launch_date, 1, 4)::int % 400 = 0
@@ -513,22 +580,68 @@ export class Store {
               WHEN '04' THEN 30 WHEN '06' THEN 30 WHEN '09' THEN 30 WHEN '11' THEN 30 ELSE 31 END
             THEN launch_date END
           END AS calendar_day,
-          (SELECT count(*) FROM jsonb_array_elements(analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
-          (SELECT count(*) FROM jsonb_array_elements(analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
+          lower(title) COLLATE "C" AS sort_title
         FROM matching
+      ), queue AS (
+        SELECT * FROM cohort WHERE $4 = 'all' OR status = $4
+      ), page AS (
+        SELECT id, ${sortKey}::text AS sort_key, created_at::text AS cursor_created,
+          row_number() OVER (ORDER BY ${pageOrder}) AS position
+        FROM queue WHERE ${pageWhere}
+        ORDER BY ${pageOrder} LIMIT $5
+      ), page_rows AS (
+        -- Findings and unknowns are counted for this page only, never across the whole cohort.
+        SELECT p.position, p.sort_key, p.cursor_created, c.id, c.status, c.revision, c.created_at, c.updated_at,
+          r.input->>'title' AS title, r.input->>'productId' AS product_id,
+          r.input->>'publisher' AS publisher, r.input->>'format' AS format,
+          r.input->>'launchDate' AS launch_date,
+          (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
+          (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
+        FROM page p
+        JOIN cases c ON c.id = p.id
+        JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
       )
       SELECT (SELECT count(*) FROM cases WHERE workspace_id = $1 AND deleted_at IS NULL) AS workspace_total,
-        COALESCE((SELECT jsonb_agg(to_jsonb(cohort) ORDER BY calendar_day ASC NULLS LAST, created_at ASC, id ASC) FROM cohort), '[]'::jsonb) AS cohort,
-        COALESCE((SELECT array_agg(id ORDER BY ${orderColumn} ${direction} NULLS LAST, created_at ASC, id ASC)
-          FROM cohort WHERE $4 = 'all' OR status = $4), ARRAY[]::text[]) AS row_ids`,
-      [workspace, query.q, query.product, query.status]);
-    const cohort: CaseSummary[] = result.cohort.map((row: Row) => ({
+        (SELECT count(*) FROM queue) AS queue_total,
+        (SELECT count(*) FROM queue WHERE ${passedWhere}) AS passed_total,
+        ${cohortJson} AS cohort,
+        COALESCE((SELECT jsonb_agg(to_jsonb(page_rows) ORDER BY page_rows.position) FROM page_rows), '[]'::jsonb) AS rows`,
+      params);
+
+    let fetched: Row[] = result.rows;
+    const hasExtra = fetched.length > query.limit;
+    if (hasExtra) fetched = fetched.slice(0, query.limit);
+    if (back) fetched = fetched.toReversed();
+    const rows: CaseSummary[] = fetched.map((row) => ({
       id: row.id, title: row.title, productId: row.product_id, publisher: row.publisher,
       format: row.format, launchDate: row.launch_date, status: row.status, revision: row.revision,
       findings: Number(row.findings), unknowns: Number(row.unknowns),
       createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
     }));
-    const byId = new Map(cohort.map((item) => [item.id, item]));
+    const total = Number(result.queue_total);
+    const passed = Number(result.passed_total);
+    const offset = cursor === null ? 0 : back ? Math.max(0, passed - fetched.length) : passed;
+    const mark = (row: Row | undefined) =>
+      row === undefined
+        ? null
+        : encodeQueueCursor({ key: row.sort_key ?? null, createdAt: row.cursor_created, id: row.id });
+    const page: QueuePage = {
+      total,
+      from: fetched.length === 0 ? 0 : offset + 1,
+      to: offset + fetched.length,
+      hasPrev: offset > 0,
+      hasNext: offset + fetched.length < total,
+      startCursor: mark(fetched[0]),
+      endCursor: mark(fetched[fetched.length - 1]),
+    };
+    if (result.cohort === null) {
+      return { rows, page, cohort: null, workspaceTotal: Number(result.workspace_total), overview: null };
+    }
+
+    const cohort: QueueCohortItem[] = result.cohort.map((row: Row) => ({
+      id: row.id, title: row.title, launchDate: row.launch_date,
+      status: row.status, createdAt: iso(row.created_at),
+    }));
     const counts: Record<CaseStatus, number> = {
       ready_for_review: 0, needs_information: 0, changes_requested: 0, approved: 0,
     };
@@ -543,7 +656,8 @@ export class Store {
     }
     const actionableStatus = query.role === "submitter" ? "changes_requested" : "ready_for_review";
     return {
-      rows: result.row_ids.map((caseId: string) => byId.get(caseId)!),
+      rows,
+      page,
       cohort,
       workspaceTotal: Number(result.workspace_total),
       overview: {

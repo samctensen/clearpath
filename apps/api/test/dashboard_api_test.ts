@@ -18,9 +18,12 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     assert.equal(initial.statusCode, 200);
     assert.equal(initial.headers["cache-control"], "private, no-store");
     const body = initial.json<DashboardResponse>();
-    assert.equal(body.rows.length, 6);
-    assert.equal(body.workspaceTotal, 6);
-    assert.equal(body.overview.overdueCount, 5);
+    // The default page size is 10, so a fresh workspace already pages.
+    assert.equal(body.rows.length, 10);
+    assert.equal(body.page.total, 18);
+    assert.equal(body.page.hasNext, true);
+    assert.equal(body.workspaceTotal, 18);
+    assert.equal(body.overview!.overdueCount, 8);
     const cookie = initial.headers["set-cookie"] as string;
     const head = await app.inject({ method: "HEAD", url: "/api/dashboard", headers: { cookie } });
     assert.equal(head.statusCode, 200);
@@ -40,9 +43,9 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     assert.equal(filtered.statusCode, 200);
     assert.equal(dashboardCalls, 1);
     const result = filtered.json<DashboardResponse>();
-    assert.equal(result.rows.length, 1);
-    assert.equal(result.cohort.length, 1);
-    assert.equal(result.workspaceTotal, 6);
+    assert.equal(result.rows.length, 2);
+    assert.equal(result.cohort!.length, 2);
+    assert.equal(result.workspaceTotal, 18);
     assert.equal(result.rows[0].status, "changes_requested");
     assert.equal(result.rows[0].productId, "card");
     const empty = await app.inject({
@@ -52,7 +55,7 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     });
     assert.equal(empty.statusCode, 200);
     assert.equal(empty.json<DashboardResponse>().rows.length, 0);
-    assert.equal(empty.json<DashboardResponse>().workspaceTotal, 6);
+    assert.equal(empty.json<DashboardResponse>().workspaceTotal, 18);
     assert.equal(empty.headers["set-cookie"], undefined);
     const restored = await app.inject({
       method: "GET",
@@ -60,8 +63,8 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
       headers: { cookie },
     });
     assert.deepEqual(
-      restored.json<DashboardResponse>().cohort.map((item) => item.id),
-      body.cohort.map((item) => item.id),
+      restored.json<DashboardResponse>().cohort!.map((item) => item.id),
+      body.cohort!.map((item) => item.id),
     );
     for (
       const suffix of [
@@ -95,7 +98,7 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     const legacy = await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } });
     assert.equal(legacy.statusCode, 200);
     assert.ok(Array.isArray(legacy.json()));
-    assert.equal(legacy.json().length, 6);
+    assert.equal(legacy.json().length, 18);
   } finally {
     await app.close();
     await store.close();
@@ -123,10 +126,71 @@ Deno.test("dashboard recovers an actually empty demo workspace", async () => {
     });
     assert.equal(recovered.statusCode, 200);
     assert.equal(recovered.json<DashboardResponse>().rows.length, 0);
-    assert.equal(recovered.json<DashboardResponse>().workspaceTotal, 6);
+    assert.equal(recovered.json<DashboardResponse>().workspaceTotal, 18);
     assert.ok(recovered.headers["set-cookie"]);
   } finally {
     await emptyApp.close();
+    await app.close();
+    await store.close();
+  }
+});
+
+Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never issued", async () => {
+  const store = await createTestStore();
+  const app = await createApiServer({
+    store,
+    analyze,
+    offers,
+    policyVersion: POLICY_VERSION,
+    cookieSecret: "a".repeat(32),
+  });
+  try {
+    const first = await app.inject({ method: "GET", url: "/api/dashboard?limit=2&today=2026-11-16" });
+    assert.equal(first.statusCode, 200);
+    const firstBody = first.json<DashboardResponse>();
+    const cookie = first.headers["set-cookie"] as string;
+    assert.equal(firstBody.rows.length, 2);
+    assert.equal(firstBody.page.total, 18);
+    assert.equal(firstBody.page.from, 1);
+    assert.equal(firstBody.page.to, 2);
+    assert.equal(firstBody.page.hasPrev, false);
+    assert.equal(firstBody.page.hasNext, true);
+
+    const second = await app.inject({
+      method: "GET",
+      url: `/api/dashboard?limit=2&today=2026-11-16&scope=page&after=${
+        encodeURIComponent(firstBody.page.endCursor!)
+      }`,
+      headers: { cookie },
+    });
+    assert.equal(second.statusCode, 200);
+    const secondBody = second.json<DashboardResponse>();
+    assert.equal(secondBody.page.from, 3);
+    assert.equal(secondBody.page.hasPrev, true);
+    // A client that already holds the chart data pays nothing to re-send it.
+    assert.equal(secondBody.cohort, null);
+    assert.equal(secondBody.overview, null);
+    const overlap = secondBody.rows.filter((row) =>
+      firstBody.rows.some((earlier) => earlier.id === row.id)
+    );
+    assert.deepEqual(overlap, []);
+
+    const rejected = await app.inject({
+      method: "GET",
+      url: "/api/dashboard?after=not-a-real-cursor",
+      headers: { cookie },
+    });
+    assert.equal(rejected.statusCode, 400);
+
+    const conflicting = await app.inject({
+      method: "GET",
+      url: `/api/dashboard?after=${encodeURIComponent(firstBody.page.endCursor!)}&before=${
+        encodeURIComponent(firstBody.page.endCursor!)
+      }`,
+      headers: { cookie },
+    });
+    assert.equal(conflicting.statusCode, 400);
+  } finally {
     await app.close();
     await store.close();
   }

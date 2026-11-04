@@ -489,24 +489,24 @@ Deno.test("dashboard SQL filters and sorts within one workspace while retaining 
     assert.equal(state.queries, 1);
     assert.equal(filtered.workspaceTotal, 5);
     assert.deepEqual(filtered.rows.map((item) => item.id), [ids[3]]);
-    assert.deepEqual(filtered.cohort.map((item) => item.id), [ids[0], ids[1], ids[3], ids[4]]);
-    assert.deepEqual(filtered.overview.counts, { ready_for_review: 2, needs_information: 1, changes_requested: 0, approved: 1 });
-    assert.equal(filtered.overview.openCount, 3);
-    assert.equal(filtered.overview.nextLaunchDate, "2026-11-03");
-    assert.equal(filtered.overview.overdueCount, 1);
-    assert.deepEqual(filtered.overview.actionable.map((item) => item.id), [ids[0], ids[1], ids[4]]);
+    assert.deepEqual(filtered.cohort!.map((item) => item.id), [ids[0], ids[1], ids[3], ids[4]]);
+    assert.deepEqual(filtered.overview!.counts, { ready_for_review: 2, needs_information: 1, changes_requested: 0, approved: 1 });
+    assert.equal(filtered.overview!.openCount, 3);
+    assert.equal(filtered.overview!.nextLaunchDate, "2026-11-03");
+    assert.equal(filtered.overview!.overdueCount, 1);
+    assert.deepEqual(filtered.overview!.actionable.map((item) => item.id), [ids[0], ids[1], ids[4]]);
     assert.deepEqual((await store.dashboard(workspace, query({ product: "card", direction: "desc" }))).rows.map((item) => item.id), [ids[3], ids[1], ids[0], ids[4]]);
     assert.deepEqual((await store.dashboard(workspace, query({ product: "card", sort: "title" }))).rows.map((item) => item.id), [ids[1], ids[3], ids[0], ids[4]]);
     assert.deepEqual((await store.dashboard(workspace, query({ product: "card", sort: "updatedAt", direction: "desc" }))).rows.map((item) => item.id), [ids[4], ids[3], ids[1], ids[0]]);
     const submitter = await store.dashboard(workspace, query({ role: "submitter" }));
-    assert.deepEqual(submitter.overview.actionable.map((item) => item.id), [ids[2], ids[1]]);
+    assert.deepEqual(submitter.overview!.actionable.map((item) => item.id), [ids[2], ids[1]]);
     for (const q of ["100%_", "%", "_", "DELTA", " delta 100%_ "]) {
       assert.deepEqual((await store.dashboard(workspace, query({ q }))).rows.map((item) => item.id), [ids[0]]);
     }
     assert.equal((await store.dashboard(workspace, query({ q: "PARTNER STUDIO" }))).rows.length, 4);
     assert.equal((await store.dashboard(workspace, query({ q: "' OR 1=1 --" }))).rows.length, 0);
     assert.equal((await store.dashboard(other, query())).workspaceTotal, 1);
-    assert.equal((await store.dashboard(workspace, query({ status: "changes_requested", product: "card" }))).cohort.length, 4);
+    assert.equal((await store.dashboard(workspace, query({ status: "changes_requested", product: "card" }))).cohort!.length, 4);
     // Equal target dates retain creation/ID tie order in either direction.
     await client.query("UPDATE revisions SET input=jsonb_set(input,'{launchDate}','\"2026-11-03\"') WHERE case_id=$1", [ids[1]]);
     const tiedAsc = (await store.dashboard(workspace, query({ q: "Partner Studio" }))).rows;
@@ -515,5 +515,130 @@ Deno.test("dashboard SQL filters and sorts within one workspace while retaining 
     assert.deepEqual(tiedDesc.filter((item) => item.launchDate === "2026-11-03").map((item) => item.id), [ids[0], ids[1]]);
     await client.query("UPDATE cases SET created_at='2026-11-01T00:00:00Z' WHERE id=$1", [ids[1]]);
     assert.deepEqual((await store.dashboard(workspace, query())).rows.filter((item) => item.launchDate === "2026-11-03").map((item) => item.id), [ids[0], ids[1]].sort());
+  } finally { await store.close(); }
+});
+
+Deno.test("dashboard pages the queue with stable cursors and exact positions", async () => {
+  const { store, client } = await instrumentedStore();
+  const { dashboardQuerySchema } = await import("@clearpath/contracts");
+  const query = (values: Record<string, unknown> = {}) =>
+    dashboardQuerySchema.parse({ today: "2026-11-04", ...values });
+  try {
+    const workspace = await store.createWorkspace();
+    const ids: string[] = [];
+    for (let index = 0; index < 7; index++) {
+      const saved = await store.createCase(workspace, {
+        ...input,
+        title: `Campaign ${index}`,
+        launchDate: `2026-11-0${index + 1}`,
+      }, analysis);
+      if (!saved.ok) throw new Error("fixture failed");
+      ids.push(saved.value.case.id);
+      await client.query("UPDATE cases SET created_at=$1, updated_at=$1 WHERE id=$2", [
+        `2026-10-0${index + 1}T00:00:00Z`,
+        saved.value.case.id,
+      ]);
+    }
+
+    const first = await store.dashboard(workspace, query({ limit: 3 }));
+    assert.deepEqual(first.rows.map((item) => item.id), ids.slice(0, 3));
+    assert.equal(first.page.total, 7);
+    assert.equal(first.page.from, 1);
+    assert.equal(first.page.to, 3);
+    assert.equal(first.page.hasPrev, false);
+    assert.equal(first.page.hasNext, true);
+
+    const second = await store.dashboard(workspace, query({ limit: 3, after: first.page.endCursor }));
+    assert.deepEqual(second.rows.map((item) => item.id), ids.slice(3, 6));
+    assert.equal(second.page.from, 4);
+    assert.equal(second.page.to, 6);
+    assert.equal(second.page.hasPrev, true);
+    assert.equal(second.page.hasNext, true);
+
+    const last = await store.dashboard(workspace, query({ limit: 3, after: second.page.endCursor }));
+    assert.deepEqual(last.rows.map((item) => item.id), ids.slice(6));
+    assert.equal(last.page.from, 7);
+    assert.equal(last.page.to, 7);
+    assert.equal(last.page.hasNext, false);
+
+    const back = await store.dashboard(workspace, query({ limit: 3, before: last.page.startCursor }));
+    assert.deepEqual(back.rows.map((item) => item.id), second.rows.map((item) => item.id));
+    assert.equal(back.page.from, 4);
+    assert.equal(back.page.hasNext, true);
+  } finally { await store.close(); }
+});
+
+Deno.test("dashboard page scope answers without cohort or overview work", async () => {
+  const { store, state } = await instrumentedStore();
+  const { dashboardQuerySchema } = await import("@clearpath/contracts");
+  try {
+    const workspace = await store.createWorkspace();
+    for (let index = 0; index < 4; index++) {
+      const saved = await store.createCase(workspace, {
+        ...input,
+        title: `Campaign ${index}`,
+        launchDate: `2026-11-0${index + 1}`,
+      }, analysis);
+      if (!saved.ok) throw new Error("fixture failed");
+    }
+    state.queries = 0;
+    const paged = await store.dashboard(
+      workspace,
+      dashboardQuerySchema.parse({ today: "2026-11-04", limit: 2, scope: "page" }),
+    );
+    assert.equal(state.queries, 1);
+    assert.equal(paged.cohort, null);
+    assert.equal(paged.overview, null);
+    assert.equal(paged.rows.length, 2);
+    assert.equal(paged.page.total, 4);
+    assert.equal(paged.page.hasNext, true);
+  } finally { await store.close(); }
+});
+
+Deno.test("dashboard cursors keep tied target dates from repeating or vanishing across pages", async () => {
+  const { store, client } = await instrumentedStore();
+  const { dashboardQuerySchema } = await import("@clearpath/contracts");
+  try {
+    const workspace = await store.createWorkspace();
+    const ids: string[] = [];
+    for (let index = 0; index < 6; index++) {
+      const saved = await store.createCase(
+        workspace,
+        { ...input, title: `Tied ${index}`, launchDate: "2026-11-03" },
+        analysis,
+      );
+      if (!saved.ok) throw new Error("fixture failed");
+      ids.push(saved.value.case.id);
+      await client.query("UPDATE cases SET created_at=$1 WHERE id=$2", [
+        "2026-10-01T00:00:00Z",
+        saved.value.case.id,
+      ]);
+    }
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 3; page++) {
+      const result: Awaited<ReturnType<typeof store.dashboard>> = await store.dashboard(
+        workspace,
+        dashboardQuerySchema.parse({ today: "2026-11-04", limit: 2, after: cursor ?? undefined }),
+      );
+      seen.push(...result.rows.map((item) => item.id));
+      cursor = result.page.endCursor;
+    }
+    assert.deepEqual(seen.toSorted(), ids.toSorted());
+    assert.equal(new Set(seen).size, 6);
+  } finally { await store.close(); }
+});
+
+Deno.test("dashboard rejects a corrupt cursor instead of silently restarting the queue", async () => {
+  const { store } = await instrumentedStore();
+  const { dashboardQuerySchema } = await import("@clearpath/contracts");
+  try {
+    const workspace = await store.createWorkspace();
+    const saved = await store.createCase(workspace, input, analysis);
+    if (!saved.ok) throw new Error("fixture failed");
+    // The boundary rejects it first; the store refuses it too, so no caller can route around that.
+    assert.equal(dashboardQuerySchema.safeParse({ today: "2026-11-04", after: "not-a-cursor" }).success, false);
+    const valid = dashboardQuerySchema.parse({ today: "2026-11-04" });
+    await assert.rejects(() => store.dashboard(workspace, { ...valid, after: "not-a-cursor" }));
   } finally { await store.close(); }
 });

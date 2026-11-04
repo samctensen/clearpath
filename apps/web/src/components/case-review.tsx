@@ -33,22 +33,23 @@ function isConcern(check: CheckResult) {
   return check.status === "finding" || check.status === "unknown";
 }
 
-export function CaseReview({ id }: { id: string }) {
+export function CaseReview({ id, initialRevision = null }: { id: string; initialRevision?: number | null }) {
   const path = `/cases/${encodeURIComponent(id)}`;
   const resource = useResource<CaseDetail>(path);
+  const missingRevision = resource.data && initialRevision !== null && !resource.data.revisions.some((revision) => revision.number === initialRevision);
 
   return (
     <div className={styles.casePage}>
-      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: "Review queue" }} /><CaseLoading /></> : resource.data ? (
-        <ReviewDesk detail={resource.data} path={path} onChange={resource.replace} onReload={resource.reload} />
+      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: "Review queue" }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className="button secondary" href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
+        <ReviewDesk detail={resource.data} path={path} onChange={resource.replace} onReload={resource.reload} initialRevision={initialRevision} />
       ) : <><PageHeader title="Review submission" back={{ href: "/", label: "Review queue" }} /><ErrorMessage message={resource.error} retry={resource.reload} /></>}
     </div>
   );
 }
 
-function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; path: string; onChange: (detail: CaseDetail) => void; onReload: () => void }) {
+function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { detail: CaseDetail; path: string; onChange: (detail: CaseDetail) => void; onReload: () => void; initialRevision: number | null }) {
   const role = useDemoRole();
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(initialRevision);
   const [comparing, setComparing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
@@ -158,13 +159,16 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
           onSaved={(updated) => {
             onChange(updated);
             setSelected(null);
+            const url = new URL(window.location.href);
+            url.searchParams.delete("revision");
+            window.history.replaceState(null, "", url);
             setComparing(false);
             setEditing(false);
           }}
         />
       ) : (
         <>
-          <section className={styles.context} aria-label="Revision details">
+          <section className={styles.summary} aria-label="Submission summary">
             <dl className={styles.metadata}>
               <div><dt>Product</dt><dd>{productLabels[revision.input.productId]}</dd></div>
               <div><dt>Format</dt><dd>{formatLabels[revision.input.format]}</dd></div>
@@ -173,6 +177,7 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
               {revision.input.format === "banner" && <div><dt>Links to an application</dt><dd>{revision.input.linksToApplication === null ? "Unknown" : revision.input.linksToApplication ? "Yes" : "No"}</dd></div>}
             </dl>
             <div className={styles.revisionToolbar}>
+              <span className={styles.summaryLabel}>Revision</span>
               <CustomSelect
                 label="Select revision"
                 value={String(revision.number)}
@@ -182,12 +187,24 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
                 onChange={(value) => {
                   const number = Number(value);
                   setSelected(number === current.number ? null : number);
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("revision", String(number));
+                  window.history.replaceState(null, "", url);
                   setComparing(false);
                   setActiveExcerpt("");
                 }}
               />
-              {previous && <button type="button" className="button secondary small" aria-pressed={comparing} onClick={() => setComparing(!comparing)}><DashboardIcon name="columns-3" size={14} />{comparing ? "Hide comparison" : "Compare with previous"}</button>}
+              {previous && (
+                <button
+                  type="button"
+                  className={`button secondary small ${styles.compareButton}`}
+                  aria-pressed={comparing}
+                  aria-label={comparing ? "Hide the comparison with the previous revision" : "Compare with the previous revision"}
+                  onClick={() => setComparing(!comparing)}
+                ><DashboardIcon name="columns-3" size={14} />{comparing ? "Hide comparison" : "Compare"}</button>
+              )}
             </div>
+            <ReviewCoverage analysis={revision.analysis} onShowCheck={jumpToCheck} />
           </section>
           {decision && (
             <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-concern"}`}>
@@ -198,14 +215,13 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
           {!decision && isCurrent && feedback && role === "submitter" && (
             <div className="notice notice-concern"><DashboardIcon name="file-lines" size={19} /><div><strong>Feedback on revision {feedback.revision}</strong><p>{feedback.message}</p></div></div>
           )}
-          {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}
+          {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}
           <div className="action-notice" ref={actionNotice}>
             {actionError && <ErrorMessage message={actionError.message} retry={actionError.conflict ? onReload : undefined} retryLabel="Reload submission" />}
             <div className="sr-only" role="status">{pending ? "Saving review action" : ""}</div>
           </div>
 
           {comparing && previous && <RevisionComparison current={revision} previous={previous} />}
-          <ReviewCoverage analysis={revision.analysis} onShowCheck={jumpToCheck} />
           <div className={styles.reviewWorkspace}>
             <div className={styles.documentColumn}>
               <div className={styles.documentContent} tabIndex={0} role="region" aria-label="Submitted copy and offer reference">
