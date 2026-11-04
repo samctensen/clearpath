@@ -6,6 +6,10 @@ ClearPath is a copy-review workspace for financial marketing teams. Submitters c
 
 The demo uses fictional offers and sample campaigns. The **Reviewer** and **Submitter** controls simulate both roles inside one shared workspace, so a link to a submission opens the same case for whoever follows it. Because the workspace is shared, reviewing copy changes what the next visitor sees; `POST /api/demo/reset` discards the drift and seeds the workspace again. Production authentication is outside the scope of this demo.
 
+## Two sides of the review loop
+
+Reviewers use the review map and queue to inspect evidence and decide on an exact revision. Submitters land in **Submissions**, where feedback and missing context lead to the next edit; a recorded revision journey shows what actually happened. Both roles share the fictional demo workspace. Copy approval never means a campaign is live or cleared for publication.
+
 ## Run locally
 
 Use Node.js 24, the version used in CI. The npm install includes Deno 2.9.6.

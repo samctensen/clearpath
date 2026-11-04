@@ -1,7 +1,7 @@
 # Distinct reviewer and submitter workspaces
 
 Date: 2026-11-04
-Status: Recommended design; planning only. Sam delegated the product choice after floating an earnings chart. No application implementation is included in this document.
+Status: Implemented on canonical main, 2026-11-04, after Sam approved implementation. Sam delegated the product choice after floating an earnings chart. See the implementation plan for validation and the deployment boundary.
 Baseline inspected: main fd15157 in /Users/sam/Developer/clearpath/clearpath-frontend. Local browser inspection confirmed 50 fictional submissions; earlier briefs mentioned 18, before concurrent seed changes.
 
 ## Decision

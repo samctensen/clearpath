@@ -37,3 +37,11 @@ Sam requested exploration and a plan, then delegated the product choice. The rev
 Preserve the reviewer map; give submitters Needs attention, an actual revision journey and a feedback-first case page. Keep workspace-wide demo semantics; no earnings, activation, ownership/auth migration or invented historical performance. Two independent Claude reviews and a fresh GPT builder check informed the plan. The plan defines three parallel lanes with an integration owner and explicit file boundaries.
 
 The planning inspection used main `fd15157`, which includes the concurrent change to 50 seeded cases (superseding the earlier 18-case seed note above). Existing workspaces may differ. Do not assume sample history has multiple revisions; the journey must be useful at revision 1.
+
+## Role workspaces implemented — 2026-11-04
+
+Sam approved implementation. Small integrated commits: 73b7665 (Claude shared workspace), 8ba540c (role guidance/grouped API views), 001aefb (submitter dashboard/journey), 784ad34 (feedback-first case view). Source is on canonical main. Submitter home is now Submissions with Needs attention, one lazy-loaded actual revision journey and Workspace submissions tabs; reviewer retains its map/queue. Manual concerns stay reviewer-controlled; historical decisions/feedback are revision-bound. AI remains available to both roles, collapsed and advisory.
+
+The separate Claude user request to remove cookies was completed concurrently and is now integrated: visitors share one demo workspace and submission links work between visitors. This supersedes earlier references to per-browser workspace isolation. Store-level workspace scoping remains. README documents the shared reset endpoint; do not call it during production verification.
+
+Validation: 173 tests passed; type checks and production build passed. Independent GPT code review's four findings were fixed and re-reviewed; real Claude screenshot review informed visual refinements. Desktop/390px browser checks passed for selection/filter/paging/role and missing-information editor behavior. Hosted deployments were not changed in this implementation pass. The remaining untracked .claude/ directory is local-only configuration.

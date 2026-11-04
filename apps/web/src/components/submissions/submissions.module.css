@@ -29,7 +29,7 @@
 .current { background:var(--dash-raised); border:1px solid var(--dash-border); border-radius:10px; margin-top:12px; padding:12px; }
 .current > p:not(.source),.concerns { color:#e2dfe8; font-size:13px; line-height:1.5; margin:7px 0 0; overflow-wrap:anywhere; }
 .currentPreview { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.feedbackLink { display:inline-block; color:#c3abff; font-size:12px; font-weight:650; margin-top:5px; }
+.feedbackLink { display:block; width:fit-content; color:#c3abff; font-size:12px; font-weight:650; margin-top:5px; }
 .feedbackLink:hover { text-decoration:underline; }
 .concerns li { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .concerns { border-top:1px solid #413c4c; margin-top:10px; padding-top:10px; }
