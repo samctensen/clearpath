@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useState } from "react";
 import { usePendingHeight } from "@/lib/use-pending-height";
 import type { CaseDetail, DashboardRow } from "@clearpath/contracts";
 import { useResource } from "@/lib/use-resource";
@@ -9,14 +9,16 @@ import { buildSubmissionJourney } from "@/lib/submission-journey";
 import { formatDate, formatTime } from "../ui";
 import { SubmissionJourney } from "./submission-journey";
 import styles from "./submissions.module.css";
+import density from "./submission-density.module.css";
 
 const stateLabels = { needs_information: "Needs information", changes_requested: "Changes requested", ready_for_review: "Awaiting review", approved: "Copy approved" } as const;
 const sourceLabels = { reviewer_feedback: "Reviewer", missing_information: "Automated check", awaiting_review: "Submission", approved_copy: "Reviewer decision" } as const;
 
-export function SubmitterDashboard({ attention, attentionTotal, selectedId, refreshGeneration, loading, error, onSelect, onViewAttention, onRetry }: {
+export function SubmitterDashboard({ attention, attentionTotal, selectedId, refreshGeneration, loading, error, onSelect, onViewAttention, onRetry, onLayoutReady }: {
   attention: DashboardRow[]; attentionTotal: number; selectedId: string | null; refreshGeneration: number; loading: boolean; error: string | null;
-  onSelect(id: string): void; onViewAttention(): void; onRetry(): void;
+  onSelect(id: string): void; onViewAttention(): void; onRetry(): void; onLayoutReady?(ready: boolean): void;
 }) {
+  const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const journeyKey = selectedId ? `${selectedId}:${refreshGeneration}` : null;
   const [journeyLoad, setJourneyLoad] = useState({ key: journeyKey, settled: false });
   // A→B→A still remounts the loader for A, even if A was the last settled case.
@@ -26,6 +28,8 @@ export function SubmitterDashboard({ attention, attentionTotal, selectedId, refr
   const journeyLayout = usePendingHeight<HTMLElement>(loading || (journeyKey !== null && (journeyLoad.key !== journeyKey || !journeyLoad.settled)));
   const onJourneySettled = useCallback(() => setJourneyLoad({ key: journeyKey, settled: true }), [journeyKey]);
   const onJourneyRetry = useCallback(() => setJourneyLoad({ key: journeyKey, settled: false }), [journeyKey]);
+  const layoutReady = !loading && (journeyKey === null || (journeyLoad.key === journeyKey && journeyLoad.settled));
+  useLayoutEffect(() => { onLayoutReady?.(layoutReady); }, [layoutReady, onLayoutReady]);
 
   return <div className={styles.panels}>
     <section className={styles.panel} aria-labelledby="attention-heading" {...attentionLayout}>
@@ -34,22 +38,24 @@ export function SubmitterDashboard({ attention, attentionTotal, selectedId, refr
         <div className={styles.itemTitle}><strong>{item.title}</strong><span className={styles.badge} data-status={item.status}>{stateLabels[item.status]}</span></div>
         <p className={styles.meta}>Revision {item.revision} · Target {formatDate(item.launchDate)}</p>
         <p className={styles.snippet}><b>{item.guidance ? sourceLabels[item.guidance.kind] : "Details"}</b> {item.guidance?.text || "Open submission for details."}</p>
-        <div className={styles.itemActions}><button type="button" className={styles.textButton} aria-label={`Preview journey for ${item.title}`} aria-pressed={selectedId === item.id} onClick={() => onSelect(item.id)}>Preview journey</button><Link className={styles.actionLink} href={`/cases/${encodeURIComponent(item.id)}?intent=revise`}>{item.status === "needs_information" ? "Add information" : "Revise copy"} <span aria-hidden="true">→</span></Link></div>
+        <div className={styles.itemActions}><button type="button" className={styles.textButton} aria-label={`Preview journey for ${item.title}`} aria-pressed={selectedId === item.id} onClick={() => { setExpandedJourney(item.id); onSelect(item.id); }}>Preview journey</button><Link className={styles.actionLink} href={`/cases/${encodeURIComponent(item.id)}?intent=revise`}>{item.status === "needs_information" ? "Add information" : "Revise copy"} <span aria-hidden="true">→</span></Link></div>
       </li>)}</ul> : <div className={styles.empty}><p>No submissions need changes or information.</p><span>Current submissions can be previewed from the list below.</span></div>}
     </section>
-    <section className={styles.panel} id="submission-journey" tabIndex={-1} aria-label="Selected submission journey" {...journeyLayout}>
-      {selectedId ? <SelectedJourney key={journeyKey} selectedId={selectedId} onRetryList={onRetry} onSettled={onJourneySettled} onRetryJourney={onJourneyRetry} /> : loading ? <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div> : <div className={styles.empty}><p className={styles.eyebrow}>Submission journey</p><h2>Choose a submission</h2><p>Preview a submission to see its current state and recorded history.</p><Link className={styles.actionLink} href="/new">New submission →</Link></div>}
+    <section className={styles.panel} id="submission-journey" tabIndex={-1} aria-label="Selected submission journey" {...journeyLayout} onFocus={event => { if (event.target === event.currentTarget && selectedId) setExpandedJourney(selectedId); }}>
+      {selectedId ? <SelectedJourney key={journeyKey} selectedId={selectedId} detailsExpanded={expandedJourney === selectedId} onToggleDetails={() => setExpandedJourney(current => current === selectedId ? null : selectedId)} onRetryList={onRetry} onSettled={onJourneySettled} onRetryJourney={onJourneyRetry} /> : loading ? <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div> : <div className={styles.empty}><p className={styles.eyebrow}>Submission journey</p><h2>Choose a submission</h2><p>Preview a submission to see its current state and recorded history.</p><Link className={styles.actionLink} href="/new">New submission →</Link></div>}
     </section>
   </div>;
 }
 
-function SelectedJourney({ selectedId, onRetryList, onSettled, onRetryJourney }: { selectedId: string; onRetryList(): void; onSettled(): void; onRetryJourney(): void }) {
+function SelectedJourney({ selectedId, detailsExpanded, onToggleDetails, onRetryList, onSettled, onRetryJourney }: { selectedId: string; detailsExpanded: boolean; onToggleDetails(): void; onRetryList(): void; onSettled(): void; onRetryJourney(): void }) {
+  const detailsId = useId();
   const resource = useResource<CaseDetail>(`/cases/${encodeURIComponent(selectedId)}`);
   useLayoutEffect(() => { if (!resource.loading) onSettled(); }, [resource.loading, onSettled]);
   if (resource.loading) return <div className={styles.skeleton} role="status"><span>Loading journey…</span><i /><i /><i /></div>;
   if (resource.error || !resource.data || resource.data.case.id !== selectedId) return <div className={styles.empty} role="alert"><h2>Couldn’t load this journey</h2><p>{resource.error || "This submission is no longer available."}</p><div className={styles.itemActions}><button type="button" className={styles.textButton} onClick={() => { onRetryJourney(); resource.reload(); }}>Try again</button><button type="button" className={styles.textButton} onClick={onRetryList}>Refresh list</button></div></div>;
   const detail = resource.data;
   const { currentRevision, openManualConcerns, events } = buildSubmissionJourney(detail);
+  const singleEvent = events.length === 1;
   const currentEvent = [...events].reverse().find(event => event.revision === currentRevision && (event.type === "changes_requested" || event.type === "approved"));
   const current = detail.revisions.find(revision => revision.number === currentRevision);
   const missing = current?.analysis.checks.filter(check => check.status === "unknown") ?? [];
@@ -57,7 +63,7 @@ function SelectedJourney({ selectedId, onRetryList, onSettled, onRetryJourney }:
   const href = `/cases/${encodeURIComponent(selectedId)}`;
   return <>
     <div className={styles.panelHeading}><div className={styles.titleBlock}><h2>{detail.case.title}</h2><p className={styles.meta}>Revision {currentRevision} · {detail.case.publisher}</p></div><span className={styles.badge} data-status={status}>{stateLabels[status]}</span></div>
-    <div className={styles.current}>
+    <div id={detailsId} className={`${styles.current} ${singleEvent ? density.singleCurrent : ""}`} data-expanded={detailsExpanded}>
       {status === "changes_requested" && <><p className={styles.source}>Reviewer feedback · Revision {currentRevision}</p><p className={styles.currentPreview}>{currentEvent?.type === "changes_requested" ? currentEvent.message : "Open submission for details."}</p></>}
       {status === "needs_information" && <><p className={styles.source}>Automated check · Revision {currentRevision}</p><p className={styles.currentPreview}>{missing[0]?.explanation || "Open submission for details."}</p></>}
       {status === "ready_for_review" && <><p className={styles.source}>Awaiting human review</p><p>Revision {currentRevision} submitted{current ? ` ${formatTime(current.createdAt)}` : ""}.</p></>}
@@ -67,5 +73,6 @@ function SelectedJourney({ selectedId, onRetryList, onSettled, onRetryJourney }:
       <Link className={styles.primaryAction} href={status === "changes_requested" || status === "needs_information" ? `${href}?intent=revise` : status === "approved" ? `${href}?revision=${currentRevision}` : href}>{status === "changes_requested" ? "Revise copy" : status === "needs_information" ? "Add information" : status === "approved" ? `View approved revision ${currentRevision}` : "View submission"} <span aria-hidden="true">→</span></Link>
     </div>
     <SubmissionJourney detail={detail} />
+    {singleEvent && <div className={density.singleActions}><button type="button" className={styles.textButton} aria-expanded={detailsExpanded} aria-controls={detailsId} onClick={onToggleDetails}>{detailsExpanded ? "Hide current details" : "Show current details"}</button><Link className={styles.actionLink} href={href}>Open submission →</Link></div>}
   </>;
 }
