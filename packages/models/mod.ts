@@ -1,9 +1,11 @@
 import { loadSubmissionRows } from "./submission-guidance.ts";
+import { fixMembershipCtes, fixSummarySql, readFixPatternSummary } from "./fix-patterns.ts";
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import {
   buildChangeRequestFeedback,
   formatChangeRequestFeedback,
+  fixReasonDefinitions,
   type ChangeRequestFeedback,
   type AiReview,
   type AiReviewContent,
@@ -581,6 +583,15 @@ export class Store {
     const cursor = token === undefined ? null : decodeQueueCursor(token);
     const params: unknown[] = [workspace, query.q, query.product, query.status, query.limit + 1, query.view];
 
+    const includeFixSummary = query.role === "submitter" && query.scope !== "page";
+    const needsFixMemberships = query.role === "submitter" && (includeFixSummary || query.reason !== undefined);
+    const membershipCtes = needsFixMemberships
+      ? `${fixMembershipCtes(`$${params.push(JSON.stringify(fixReasonDefinitions))}`)}, `
+      : "";
+    const reasonWhere = needsFixMemberships && query.reason !== undefined
+      ? `AND EXISTS (SELECT 1 FROM fix_memberships f WHERE f.id = cohort.id AND f.reason = $${params.push(query.reason)})`
+      : "";
+
     // Rows sort by key (NULLS LAST), then creation and ID, so every page boundary is unique.
     let pageWhere = "TRUE";
     let passedWhere = "FALSE";
@@ -631,10 +642,11 @@ export class Store {
           END AS calendar_day,
           lower(title) COLLATE "C" AS sort_title
         FROM matching
-      ), queue AS (
+      ), ${membershipCtes}queue AS (
         SELECT * FROM cohort WHERE ($4 = 'all' OR status = $4)
           AND ($6 = 'all' OR ($6 = 'needs_attention' AND status IN ('changes_requested', 'needs_information'))
             OR ($6 = 'awaiting_review' AND status = 'ready_for_review') OR ($6 = 'approved' AND status = 'approved'))
+          ${reasonWhere}
       ), page AS (
         SELECT id, ${sortKey}::text AS sort_key, created_at::text AS cursor_created,
           row_number() OVER (ORDER BY ${pageOrder}) AS position
@@ -646,16 +658,19 @@ export class Store {
           r.input->>'title' AS title, r.input->>'productId' AS product_id,
           r.input->>'publisher' AS publisher, r.input->>'format' AS format,
           r.input->>'launchDate' AS launch_date,
-          (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
-          (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
+          (SELECT count(*) FROM jsonb_array_elements(current_analysis.checks) AS check_item WHERE check_item->>'status' = 'finding') AS findings,
+          (SELECT count(*) FROM jsonb_array_elements(current_analysis.checks) AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
         FROM page p
         JOIN cases c ON c.id = p.id
         JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
+        CROSS JOIN LATERAL (SELECT CASE WHEN jsonb_typeof(r.analysis->'checks') = 'array'
+          THEN r.analysis->'checks' ELSE '[]'::jsonb END AS checks) current_analysis
       )
       SELECT (SELECT count(*) FROM cases WHERE workspace_id = $1 AND deleted_at IS NULL) AS workspace_total,
         (SELECT count(*) FROM queue) AS queue_total,
         (SELECT count(*) FROM queue WHERE ${passedWhere}) AS passed_total,
         ${cohortJson} AS cohort,
+        ${includeFixSummary ? fixSummarySql : "NULL::jsonb"} AS fix_patterns,
         COALESCE((SELECT jsonb_agg(to_jsonb(page_rows) ORDER BY page_rows.position) FROM page_rows), '[]'::jsonb) AS rows`,
       params);
 
@@ -685,22 +700,14 @@ export class Store {
       startCursor: mark(fetched[0]),
       endCursor: mark(fetched[fetched.length - 1]),
     };
-    const attentionIds: string[] = query.role === "submitter" && result.cohort !== null
-      ? result.cohort.filter((row: Row) => row.status === "changes_requested" || row.status === "needs_information")
-        .slice(0, 3).map((row: Row) => row.id)
-      : [];
-    let submitterAttention: import("@clearpath/contracts").DashboardRow[] | null = null;
+    const fixPatterns = readFixPatternSummary(result.fix_patterns);
+    const submitterAttention = null;
     if (query.role === "submitter") {
-      const guidance = await loadSubmissionRows(this.db.query.bind(this.db), workspace,
-        [...new Set([...rows.map((row) => row.id), ...attentionIds])]);
+      const guidance = await loadSubmissionRows(this.db.query.bind(this.db), workspace, rows.map((row) => row.id));
       rows = rows.map((row) => guidance.get(row.id) ?? row);
-      if (result.cohort !== null) submitterAttention = attentionIds.flatMap((id) => {
-        const row = guidance.get(id);
-        return row ? [row] : [];
-      });
     }
     if (result.cohort === null) {
-      return { rows, page, cohort: null, workspaceTotal: Number(result.workspace_total), overview: null, submitterAttention };
+      return { rows, page, cohort: null, workspaceTotal: Number(result.workspace_total), overview: null, submitterAttention, fixPatterns };
     }
 
     const cohort: QueueCohortItem[] = result.cohort.map((row: Row) => ({
@@ -723,6 +730,7 @@ export class Store {
     return {
       rows,
       submitterAttention,
+      fixPatterns,
       page,
       cohort,
       workspaceTotal: Number(result.workspace_total),

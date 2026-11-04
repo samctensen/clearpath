@@ -47,7 +47,8 @@ Deno.test("guidance follows current revisions and excludes deleted or foreign ca
     assert.equal(missing.guidance?.kind, "missing_information");
     assert.equal(approved.guidance?.kind, "approved_copy");
     assert.equal(approved.guidance?.revision, approved.revision);
-    assert.ok(initial.submitterAttention!.length <= 3);
+    assert.equal(initial.submitterAttention, null);
+    assert.equal(initial.fixPatterns!.total, initial.rows.filter((row) => row.status === "needs_information" || row.status === "changes_requested").length);
     const detail = (await app.inject({ method: "GET", url: `/api/cases/${feedback.id}` })).json();
     const revised = await app.inject({ method: "POST", url: `/api/cases/${feedback.id}/revisions`,
       headers: { "content-type": "application/json", "x-demo-role": "submitter" },
@@ -70,7 +71,8 @@ Deno.test("guidance follows current revisions and excludes deleted or foreign ca
     const { dashboardQuerySchema } = await import("@clearpath/contracts");
     const other = await store.dashboard(foreign, dashboardQuerySchema.parse({ role: "submitter" }));
     assert.deepEqual(other.rows, []);
-    assert.deepEqual(other.submitterAttention, []);
+    assert.equal(other.submitterAttention, null);
+    assert.equal(other.fixPatterns!.total, 0);
   } finally { await app.close(); await store.close(); }
 });
 

@@ -223,3 +223,65 @@ Deno.test("dashboard rejects malformed cursor timestamps before SQL while preser
     await store.close();
   }
 });
+
+
+Deno.test("dashboard validates fix reasons before storage and returns matching filtered totals", async () => {
+  const { SHARED_WORKSPACE } = await import("@clearpath/models");
+  const { fixReasonDefinitions } = await import("@clearpath/contracts");
+  const store = await createTestStore();
+  const seed = await store.createSeededWorkspace(Array.from({ length: 7 }, (_, index) => ({
+    input: { title: `Pattern fixture ${index}`, productId: "card" as const, offerId: null,
+      content: "Fictional marketing copy.", format: "email" as const, publisher: "Fixture studio",
+      launchDate: "2026-12-01", completeAsset: true, linksToApplication: null, substantiation: "" },
+    analysis: { checks: [], policyVersion: "fixture", offerVersion: null, scope: "fixture" },
+    decision: { decision: "request_changes" as const, note: "Clarify the disclosure.", dispositions: [] },
+  })), SHARED_WORKSPACE);
+  assert.ok(seed.ok);
+  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, seed: false });
+  try {
+    let dashboardCalls = 0;
+    const dashboard = store.dashboard.bind(store);
+    store.dashboard = (workspace, query) => { dashboardCalls++; return dashboard(workspace, query); };
+    for (const suffix of [
+      "role=submitter&view=needs_attention&reason=unknown",
+      "role=submitter&view=needs_attention&reason=request:unknown-rule",
+      "role=submitter&view=needs_attention&reason=",
+      "role=submitter&view=needs_attention&reason=other_feedback&reason=details_unavailable",
+      "role=submitter&view=needs_attention&reason=other_feedback%27%3BDROP%20TABLE%20cases",
+      "role=reviewer&view=needs_attention&reason=other_feedback",
+      "role=reviewer&reason=other_feedback",
+      "role=submitter&reason=other_feedback",
+      "role=submitter&view=approved&reason=other_feedback",
+      "role=submitter&view=awaiting_review&reason=other_feedback",
+      "role=submitter&view=needs_attention&status=changes_requested&reason=other_feedback",
+    ]) {
+      const response = await app.inject({ method: "GET", url: `/api/dashboard?${suffix}` });
+      assert.equal(response.statusCode, 400, suffix);
+      assert.equal(response.json().error.code, "invalid", suffix);
+    }
+    assert.equal(dashboardCalls, 0);
+    const base = "/api/dashboard?role=submitter&view=needs_attention&reason=other_feedback&limit=2";
+    const first = await app.inject({ method: "GET", url: base });
+    assert.equal(first.statusCode, 200);
+    const body = first.json<DashboardResponse>();
+    assert.equal(body.fixPatterns!.total, 7);
+    assert.equal(body.fixPatterns!.reasons.find((reason) => reason.id === "other_feedback")!.count, 7);
+    assert.equal(body.page.total, 7);
+    assert.equal(body.rows.length, 2);
+    assert.equal(body.submitterAttention, null);
+    const next = await app.inject({ method: "GET", url: `${base}&scope=page&after=${encodeURIComponent(body.page.endCursor!)}` });
+    const page = next.json<DashboardResponse>();
+    assert.equal(next.statusCode, 200);
+    assert.equal(page.fixPatterns, null);
+    assert.equal(page.page.total, 7);
+    assert.equal(page.page.from, 3);
+    assert.ok(page.rows.every((row) => !body.rows.some((previous) => previous.id === row.id)));
+    for (const reason of fixReasonDefinitions) {
+      const response = await app.inject({ method: "GET", url: `/api/dashboard?role=submitter&view=needs_attention&reason=${encodeURIComponent(reason.id)}` });
+      assert.equal(response.statusCode, 200, reason.id);
+      assert.equal(response.json<DashboardResponse>().page.total, reason.id === "other_feedback" ? 7 : 0, reason.id);
+    }
+    const reviewer = await app.inject({ method: "GET", url: "/api/dashboard" });
+    assert.equal(reviewer.json<DashboardResponse>().fixPatterns, null);
+  } finally { await app.close(); await store.close(); }
+});

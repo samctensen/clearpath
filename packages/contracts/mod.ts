@@ -2,6 +2,8 @@ import { z } from "zod";
 export * from "./ai-review.ts";
 export * from "./submission-guidance.ts";
 export * from "./change-request.ts";
+export * from "./fix-patterns.ts";
+import { isFixReasonId, type FixPatternSummary } from "./fix-patterns.ts";
 import type { ChangeRequestFeedback } from "./change-request.ts";
 import type { DashboardRow } from "./submission-guidance.ts";
 
@@ -128,6 +130,7 @@ export const dashboardQuerySchema = z.object({
   product: z.enum(["all", ...productIds]).default("all"),
   status: z.enum(["all", "needs_information", "ready_for_review", "changes_requested", "approved"]).default("all"),
   view: z.enum(["all", "needs_attention", "awaiting_review", "approved"]).default("all"),
+  reason: z.string().refine(isFixReasonId, "Invalid fix reason").optional(),
   sort: z.enum(["launchDate", "title", "updatedAt"]).default("launchDate"),
   direction: z.enum(["asc", "desc"]).default("asc"),
   role: z.enum(["reviewer", "submitter"]).default("reviewer"),
@@ -144,6 +147,9 @@ export const dashboardQuerySchema = z.object({
 }).superRefine((value, context) => {
   if (value.view !== "all" && (value.role !== "submitter" || value.status !== "all")) {
     context.addIssue({ code: "custom", message: "Submitter views require submitter role and all statuses", path: ["view"] });
+  }
+  if (value.reason !== undefined && (value.role !== "submitter" || value.view !== "needs_attention" || value.status !== "all")) {
+    context.addIssue({ code: "custom", message: "Fix reasons require submitter Needs attention and all statuses", path: ["reason"] });
   }
   if (value.sort !== "updatedAt") return;
   for (const direction of ["after", "before"] as const) {
@@ -181,6 +187,8 @@ export interface DashboardOverview {
 export interface DashboardResponse {
   rows: DashboardRow[];
   submitterAttention: DashboardRow[] | null;
+  /** Search/product attention cohort; null for reviewers and page-only requests. */
+  fixPatterns: FixPatternSummary | null;
   page: QueuePage;
   /** Search/product cohort before the queue-only status filter; null under `scope=page`. */
   cohort: QueueCohortItem[] | null;
