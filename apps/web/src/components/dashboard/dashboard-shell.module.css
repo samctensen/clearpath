@@ -9,10 +9,10 @@
   --dash-accent: #9865f5;
   --dash-accent-fill: #6d28d9;
   --dash-accent-fill-hover: #7c3aed;
-  --dash-ready: #9865f5;
-  --dash-info: #efb94f;
-  --dash-waiting: #64aaed;
-  --dash-approved: #53cd94;
+  --dash-ready: #a16bff;
+  --dash-info: #ffc53d;
+  --dash-waiting: #3bafff;
+  --dash-approved: #35e39c;
   --dash-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   color-scheme: dark;

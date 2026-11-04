@@ -1,5 +1,7 @@
 # Neutral dark review desk
 
+The neutral palette and shell remain current. The chart has since been replaced by the [review map](review-map-handoff.md); see that brief for current interactions and motion.
+
 Sam rejected the tinted gray and lavender palette and explicitly requested darker neutral gray, deeper purple, and a candid Claude critique. [Claude’s screenshot-based review](claude-homepage-critique-v4.md) identified excessive technical decoration, repetition, widespread purple, and an oversized Up next panel.
 
 Use zero-chroma neutrals: canvas/sidebar #090909, panels #101010, raised controls #181818, borders #262626, primary text #ededed, secondary text #999999. Purple has two jobs: #6d28d9 fill with white text (7.1:1 contrast), #7c3aed hover, and #9865f5 for legible small links/focus/lines (5.0:1 on panels). Status colors remain distinct on dots and markers; table status text is neutral.

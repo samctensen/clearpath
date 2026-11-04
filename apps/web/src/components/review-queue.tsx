@@ -8,7 +8,7 @@ import { buildDashboard, dashboardCohort, dashboardRows, dashboardStatuses, defa
 import { useChangeDemoRole, useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
 import { DashboardUserMenu } from "./dashboard/dashboard-user-menu";
-import { ReviewPipeline } from "./dashboard/review-pipeline";
+import { ReviewMap } from "./dashboard/review-map";
 import styles from "./dashboard/review-dashboard.module.css";
 
 const filtersKey = "clearpath-dashboard-filters-v1";
@@ -71,7 +71,7 @@ export function ReviewQueue() {
 
     {loading ? <div className={styles.loadState} role="status"><Icon name="rotate-right" className={styles.spin} size={23} /><span>Loading your workspace…</span></div> : resource.error ? <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load the workspace</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div> : <>
       <div className={styles.overviewGrid}>
-        <ReviewPipeline cases={cohort} today={today} counts={overview.counts} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
+        <ReviewMap cases={cohort} preferredCaseId={overview.actionable[0]?.id} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
         <section className={styles.nextPanel} aria-labelledby="next-title">
           <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div></div>
           <div className={styles.nextList}>
