@@ -1,6 +1,6 @@
 # ClearPath: product thesis and research
 
-Prepared November 3, 2026. This is a proposed product direction, not an additional specification from PromptArmor. Sam's handoff and subsequent instruction to define the product are the complete assignment available to us. Implementation is pending this product-definition discussion.
+Prepared November 3, 2026. This records the original product direction, not an additional specification from PromptArmor. Sam's handoff and subsequent instruction to define the product are the complete assignment available to us. The first release is now deployed at https://clearpathfinancial.xyz. See the [thesis-to-product assessment](reviews/2026-11-03-thesis-alignment.md) for observed alignment, remaining gaps, and proposed improvements. The original workflow hypotheses below remain the baseline for that comparison.
 
 Revised after independent reviews by Claude Opus, Claude Sonnet, GPT-6 Astra, and GPT-6.1 Sol. See [review decisions](reviews/2026-11-03-thesis-review.md). The reviewers supported the core direction but identified gaps in executable checks, revision handling, regulatory applicability, and scope.
 
@@ -151,16 +151,16 @@ Then exercise a clean case, unknown context, a format exception, and an unseen e
 
 Instrument actual submission, first-action, change-request, revision, and decision events. Show the demo's own timeline and revision count. Decisions per reviewer-hour and cycle-time improvement are future evaluation measures requiring a baseline; seeded dates or a short scripted run do not establish business gains. Report fixture and holdout misses and false flags, with the authorship and small sample clear. Demonstrate removed workflow steps without claiming measured minutes saved.
 
-## Decisions still to settle
+## Implementation decisions
 
-- Starting recommendation after review: transparent deterministic checks are required in the first release. A model is optional follow-on work, not a dependency for the core demonstration or a stated hiring requirement.
-- Initial intake is text with asset-format/completeness metadata. The exact UI for coverage limits and human copy review is still to be designed.
-- Fictional product terms and policies, with explicit labels separating them from external regulations.
-- Persistent backend and deployment target. TypeScript/React is Sam's working preference, not an evaluator mandate; no infrastructure has been selected or provisioned.
+- The first release implements six transparent deterministic checks. A model remains optional follow-on work, not a dependency for the demonstration or a stated hiring requirement.
+- Intake accepts text and asset-format/completeness metadata. Coverage limits and the scope of a human copy decision are visible in the app.
+- Fictional product terms and policies are labeled separately from external regulatory references.
+- Sam selected two deployable apps in one repository: Next.js on Vercel, Deno/Fastify on Deno Deploy, and Neon Postgres. These are implementation choices, not evaluator mandates.
 
-## Session state
+## Project context
 
-- Repository initially contained only a README and has no application implementation.
-- Sam authorized initializing CodeGraph after source files exist.
+- The initially empty repository now contains the deployed application; the [README](../README.md) and [build progress](build-progress.md) describe the verified release.
+- CodeGraph was initialized with Sam's authorization.
 - Research references originally named under `~/workspace/` were unavailable at those exact paths on this machine; the supplied handoff is the source for interview details.
 - The handoff's claim that Ropes & Gray was the only named customer story is no longer exhaustive: the current site also publishes the HubSpot account linked above. This changes available public context, not the project requirements.
