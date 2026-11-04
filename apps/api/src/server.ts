@@ -8,7 +8,7 @@ import {
   type SubmissionInput,
   submissionSchema,
 } from "@clearpath/contracts";
-import type { Store } from "@clearpath/models";
+import type { SeedPlan, Store } from "@clearpath/models";
 
 type Dependencies = {
   store: Store;
@@ -43,7 +43,7 @@ const decisionSchema = z.object({
 const revisionSchema = z.object({ expectedRevision: revision, input: submissionSchema });
 const error = (code: string, message: string) => ({ error: { code, message } });
 
-async function seedWorkspace(deps: Dependencies, workspace: string) {
+async function seedWorkspace(deps: Dependencies): Promise<string> {
   const samples = deps.offers.flatMap((offer, i) =>
     [0, 1].map((variant) => ({
       title: `${offer.name} — ${variant ? "partner email" : "campaign page"}`,
@@ -58,45 +58,41 @@ async function seedWorkspace(deps: Dependencies, workspace: string) {
       substantiation: "",
     }))
   );
-  for (const [i, input] of samples.entries()) {
-    const created = await deps.store.createCase(workspace, input, deps.analyze(input));
-    if (!created.ok) throw new Error("Unable to seed workspace");
-    const caseId = created.value.case.id;
+  const plans: SeedPlan[] = samples.map((input, i) => {
+    const analysis = deps.analyze(input);
     if (i === 1) {
-      const decision = await deps.store.decide(
-        workspace,
-        caseId,
-        1,
-        "request_changes",
-        "Please add the promotional terms.",
-      );
-      if (!decision.ok) throw new Error("Unable to seed workspace");
+      return {
+        input,
+        analysis,
+        decision: {
+          decision: "request_changes",
+          note: "Please add the promotional terms.",
+          dispositions: [],
+        },
+      };
     }
     if (i === 4) {
-      const checks = created.value.revisions[0].analysis.checks.filter((c) =>
-        c.status === "finding" || c.status === "unknown"
-      );
-      for (const check of checks) {
-        const disposition = await deps.store.disposition(
-          workspace,
-          caseId,
-          1,
-          check.ruleId,
-          "dismissed",
-          "Reviewed for this fictional example.",
-        );
-        if (!disposition.ok) throw new Error("Unable to seed workspace");
-      }
-      const decision = await deps.store.decide(
-        workspace,
-        caseId,
-        1,
-        "approve",
-        "Approved for this demo.",
-      );
-      if (!decision.ok) throw new Error("Unable to seed workspace");
+      return {
+        input,
+        analysis,
+        decision: {
+          decision: "approve",
+          note: "Approved for this demo.",
+          dispositions: analysis.checks.filter((c) =>
+            c.status === "finding" || c.status === "unknown"
+          ).map((check) => ({
+            ruleId: check.ruleId,
+            action: "dismissed" as const,
+            reason: "Reviewed for this fictional example.",
+          })),
+        },
+      };
     }
-  }
+    return { input, analysis };
+  });
+  const result = await deps.store.createSeededWorkspace(plans);
+  if (!result.ok) throw new Error("Unable to seed workspace");
+  return result.value;
 }
 export async function createApiServer(deps: Dependencies) {
   const app = Fastify({ logger: false, bodyLimit: 192 * 1024 });
@@ -143,12 +139,15 @@ export async function createApiServer(deps: Dependencies) {
     const parsed = signed ? req.unsignCookie(signed) : null;
     let workspace = parsed?.valid ? parsed.value : null;
     const exists = workspace ? await deps.store.hasWorkspace(workspace) : false;
-    const recoverEmpty = exists && deps.seed !== false && req.method === "GET" &&
-      req.url.split("?")[0] === "/api/cases" &&
-      (await deps.store.listCases(workspace!)).length === 0;
+    const checkEmpty = exists && deps.seed !== false && req.method === "GET" &&
+      req.url.split("?")[0] === "/api/cases";
+    const summaries = checkEmpty ? await deps.store.listCases(workspace!) : undefined;
+    const recoverEmpty = summaries?.length === 0;
+    if (summaries && !recoverEmpty) (req as any).summaries = summaries;
     if (!exists || recoverEmpty) {
-      workspace = await deps.store.createWorkspace();
-      if (deps.seed !== false) await seedWorkspace(deps, workspace);
+      workspace = deps.seed === false
+        ? await deps.store.createWorkspace()
+        : await seedWorkspace(deps);
       reply.setCookie("clearpath_workspace", workspace, {
         signed: true,
         maxAge: 7 * 24 * 60 * 60,
@@ -197,7 +196,10 @@ export async function createApiServer(deps: Dependencies) {
     const input = parse(submissionSchema, req.body, reply);
     if (input) return deps.analyze(input);
   });
-  app.get("/api/cases", async (req) => await deps.store.listCases(ws(req)));
+  app.get(
+    "/api/cases",
+    async (req) => (req as any).summaries ?? await deps.store.listCases(ws(req)),
+  );
   app.post("/api/cases", async (req, reply) => {
     const input = parse(submissionSchema, req.body, reply);
     if (input) {

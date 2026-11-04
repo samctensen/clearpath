@@ -57,7 +57,9 @@ npm run check   # Deno and frontend type checks
 npm run build   # Next.js production build
 ```
 
-The release passed 86 local tests, both type checks, the production build, and the hosted workflow smoke test. In that hosted run, the first visit took 13.5 seconds to initialize a fresh demo workspace.
+The release passed 92 local tests, both type checks, and the hosted workflow smoke test. The unchanged frontend also passed its production build. After optimizing summary queries and demo initialization, three hosted samples showed median list latency of 1.06 seconds for a fresh visitor and 0.44 seconds for a returning visitor, down from 10.21 and 1.75 seconds respectively. See the [performance measurements and limits](docs/reviews/2026-11-03-list-performance.md).
+
+Run `node scripts/benchmark-list.mjs https://clearpathfinancial.xyz 3` to repeat the list measurement. Each sample creates six fictional records in a new isolated workspace.
 
 ## Deploy
 

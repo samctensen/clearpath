@@ -57,6 +57,8 @@ Impact: high. Risk: low to moderate; a small summary-contract addition may be ne
 
 Two recorded fresh hosted initializations took 11.4 and 13.5 seconds. The only initial message is “Loading submissions…”. This is a first-use problem even though the workflow eventually succeeds. The earlier parallel-seeding change failed in hosting and was reverted; its cause is not established.
 
+Follow-up: the [list performance investigation](2026-11-03-list-performance.md) found repeated detail hydration and expensive demo initialization. The deployed fix reduced median fresh/returning list requests from 10.21/1.75 seconds to 1.06/0.44 seconds in three samples. The workflow and three concurrent visitor checks passed. This addresses the measured delay; it does not establish a customer throughput improvement or close the comparison and queue-actionability gaps above.
+
 Profile initialization and transaction/query round trips before changing concurrency. Prefer reducing redundant database work while preserving atomic state and isolated visitor workspaces. If a delay remains, explain that the demo workspace is being prepared and provide a useful failure/retry state. Do not share one mutable sample workspace as a shortcut.
 
 Acceptance: compare a small, stated sample of fresh-cookie timings before and after the change, verify coherent seed states and isolation, and reproduce or explain any observed failure. A sub-three-second target is a proposed usability budget, not a promise or a measured result. Keep the currently verified release available if diagnosis expands.

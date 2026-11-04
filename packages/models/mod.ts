@@ -4,11 +4,22 @@ import {
   type Analysis,
   type CaseDetail,
   type CaseStatus,
+  type CaseSummary,
   failure,
   type Result,
   type SubmissionInput,
   success,
 } from "@clearpath/contracts";
+
+export type SeedPlan = {
+  input: SubmissionInput;
+  analysis: Analysis;
+  decision?: {
+    decision: "approve" | "request_changes";
+    note: string;
+    dispositions: { ruleId: string; action: "confirmed" | "dismissed"; reason: string }[];
+  };
+};
 
 type Row = Record<string, any>;
 type DB = {
@@ -80,6 +91,166 @@ export class Store {
     const workspace = id();
     await this.db.query("INSERT INTO workspaces(id) VALUES ($1)", [workspace]);
     return workspace;
+  }
+  async createSeededWorkspace(plans: SeedPlan[]): Promise<Result<string>> {
+    for (const plan of plans) {
+      const decision = plan.decision;
+      if (!decision) continue;
+      const concerns = plan.analysis.checks.filter((c) =>
+        c.status === "finding" || c.status === "unknown"
+      );
+      const seen = new Set<string>();
+      for (const disposition of decision.dispositions) {
+        if (
+          seen.has(disposition.ruleId) || !concerns.some((c) => c.ruleId === disposition.ruleId)
+        ) return failure("invalid", "Rule is not a current concern");
+        seen.add(disposition.ruleId);
+        if (disposition.action === "dismissed" && !disposition.reason.trim()) {
+          return failure("invalid", "A dismissal reason is required");
+        }
+      }
+      if (
+        decision.decision === "approve" &&
+        concerns.some((c) =>
+          !decision.dispositions.some((d) =>
+            d.ruleId === c.ruleId && d.action === "dismissed" && d.reason.trim()
+          )
+        )
+      ) return failure("blocked", "Dismiss every concern with a reason before approval");
+      if (
+        decision.decision === "request_changes" && !decision.note.trim() &&
+        !decision.dispositions.some((d) => d.action === "confirmed")
+      ) return failure("invalid", "Add feedback or confirm a concern");
+    }
+    try {
+      const hashes = await Promise.all(plans.map((plan) => hash(plan.input.content)));
+      const workspace = id();
+      const cases: unknown[] = [],
+        revisions: unknown[] = [],
+        events: unknown[] = [],
+        dispositions: unknown[] = [],
+        decisions: unknown[] = [];
+      const eventCount = plans.reduce(
+        (total, plan) => total + 1 + (plan.decision ? 1 + plan.decision.dispositions.length : 0),
+        0,
+      );
+      let timestamp = Date.now() - Math.max(0, eventCount - 1);
+      const nextTime = () => new Date(timestamp++).toISOString();
+      for (const [index, plan] of plans.entries()) {
+        const caseId = id();
+        const decision = plan.decision;
+        const status = decision
+          ? (decision.decision === "approve" ? "approved" : "changes_requested")
+          : initialStatus(plan.analysis);
+        const createdAt = nextTime();
+        let updatedAt = createdAt;
+        revisions.push({
+          id: id(),
+          case_id: caseId,
+          number: 1,
+          input: plan.input,
+          analysis: plan.analysis,
+          content_hash: hashes[index],
+          created_at: createdAt,
+        });
+        events.push({
+          id: id(),
+          case_id: caseId,
+          type: "submitted",
+          actor: "submitter",
+          message: "Submitted for copy review",
+          revision: 1,
+          created_at: createdAt,
+        });
+        for (const disposition of decision?.dispositions ?? []) {
+          const reason = disposition.reason.trim();
+          updatedAt = nextTime();
+          const check = plan.analysis.checks.find((c) => c.ruleId === disposition.ruleId)!;
+          dispositions.push({
+            case_id: caseId,
+            revision: 1,
+            rule_id: disposition.ruleId,
+            action: disposition.action,
+            reason,
+            actor: "reviewer",
+            created_at: updatedAt,
+          });
+          events.push({
+            id: id(),
+            case_id: caseId,
+            type: "finding_reviewed",
+            actor: "reviewer",
+            message: `${disposition.action}: ${check.title}${reason ? ` — ${reason}` : ""}`,
+            revision: 1,
+            created_at: updatedAt,
+          });
+        }
+        if (decision) {
+          updatedAt = nextTime();
+          const note = decision.note.trim();
+          const confirmed = decision.dispositions.filter((d) => d.action === "confirmed");
+          const feedback = [
+            note,
+            ...confirmed.map((d) => `${d.ruleId}: ${d.reason.trim() || "Confirmed concern"}`),
+          ].filter(Boolean).join("; ");
+          decisions.push({
+            id: id(),
+            case_id: caseId,
+            revision: 1,
+            decision: decision.decision,
+            note,
+            created_at: updatedAt,
+          });
+          events.push({
+            id: id(),
+            case_id: caseId,
+            type: status,
+            actor: "reviewer",
+            message: feedback || "Copy approved",
+            revision: 1,
+            created_at: updatedAt,
+          });
+        }
+        cases.push({
+          id: caseId,
+          workspace_id: workspace,
+          status,
+          revision: 1,
+          created_at: createdAt,
+          updated_at: updatedAt,
+        });
+      }
+      await this.db.transaction(async (db) => {
+        await db.query("INSERT INTO workspaces(id) VALUES ($1)", [workspace]);
+        await db.query(
+          `INSERT INTO cases(id,workspace_id,status,revision,created_at,updated_at) SELECT id,workspace_id,status,revision,created_at,updated_at FROM jsonb_to_recordset($1::text::jsonb) AS x(id text,workspace_id text,status text,revision integer,created_at timestamptz,updated_at timestamptz)`,
+          [JSON.stringify(cases)],
+        );
+        await db.query(
+          `INSERT INTO revisions(id,case_id,number,input,analysis,content_hash,created_at) SELECT id,case_id,number,input,analysis,content_hash,created_at FROM jsonb_to_recordset($1::text::jsonb) AS x(id text,case_id text,number integer,input jsonb,analysis jsonb,content_hash text,created_at timestamptz)`,
+          [JSON.stringify(revisions)],
+        );
+        if (dispositions.length) {
+          await db.query(
+            `INSERT INTO dispositions(case_id,revision,rule_id,action,reason,actor,created_at) SELECT case_id,revision,rule_id,action,reason,actor,created_at FROM jsonb_to_recordset($1::text::jsonb) AS x(case_id text,revision integer,rule_id text,action text,reason text,actor text,created_at timestamptz)`,
+            [JSON.stringify(dispositions)],
+          );
+        }
+        if (decisions.length) {
+          await db.query(
+            `INSERT INTO decisions(id,case_id,revision,decision,note,created_at) SELECT id,case_id,revision,decision,note,created_at FROM jsonb_to_recordset($1::text::jsonb) AS x(id text,case_id text,revision integer,decision text,note text,created_at timestamptz)`,
+            [JSON.stringify(decisions)],
+          );
+        }
+        await db.query(
+          `INSERT INTO events(id,case_id,type,actor,message,revision,created_at) SELECT item->>'id',item->>'case_id',item->>'type',item->>'actor',item->>'message',(item->>'revision')::integer,(item->>'created_at')::timestamptz FROM jsonb_array_elements($1::text::jsonb) WITH ORDINALITY AS x(item,ordinal) ORDER BY ordinal`,
+          [JSON.stringify(events)],
+        );
+      });
+      return success(workspace);
+    } catch {
+      return failure("storage", "Unable to access storage");
+    }
   }
   async hasWorkspace(workspace: string) {
     return (await this.db.query("SELECT id FROM workspaces WHERE id=$1", [workspace])).length > 0;
@@ -174,14 +345,33 @@ export class Store {
       failure<CaseDetail>("storage", "Unable to access storage")
     );
   }
-  async listCases(workspace: string) {
+  async listCases(workspace: string): Promise<CaseSummary[]> {
     const rows = await this.db.query(
-      "SELECT id FROM cases WHERE workspace_id=$1 ORDER BY updated_at DESC,id",
+      `
+      SELECT c.id, c.status, c.revision, c.created_at, c.updated_at,
+        r.input->>'title' AS title, r.input->>'productId' AS product_id,
+        r.input->>'publisher' AS publisher, r.input->>'format' AS format,
+        r.input->>'launchDate' AS launch_date,
+        (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'finding') AS findings,
+        (SELECT count(*) FROM jsonb_array_elements(r.analysis->'checks') AS check_item WHERE check_item->>'status' = 'unknown') AS unknowns
+      FROM cases c JOIN revisions r ON r.case_id = c.id AND r.number = c.revision
+      WHERE c.workspace_id = $1 ORDER BY c.updated_at DESC, c.id`,
       [workspace],
     );
-    const results = await Promise.all(rows.map((r) => this.getCase(workspace, r.id)));
-    if (results.some((r) => !r.ok)) throw new Error("Unable to access storage");
-    return results.flatMap((r) => r.ok ? [r.value.case] : []);
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      productId: row.product_id,
+      publisher: row.publisher,
+      format: row.format,
+      launchDate: row.launch_date,
+      status: row.status,
+      revision: row.revision,
+      findings: Number(row.findings),
+      unknowns: Number(row.unknowns),
+      createdAt: iso(row.created_at),
+      updatedAt: iso(row.updated_at),
+    }));
   }
   async createCase(
     workspace: string,

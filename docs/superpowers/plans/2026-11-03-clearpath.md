@@ -55,3 +55,10 @@ Files: apps/web/src/*; handoff frontend.md.
 - [x] Deploy both apps and pass the hosted smoke test through the Vercel fallback on API revision `03gmk0t4mxa8`. Document the URLs and initial seeding latency in the [deployment notes](../../deployment.md).
 - [x] Verify custom-domain DNS and TLS, including HTTP and `www` redirects to the canonical HTTPS apex.
 - [x] Push the reviewed release to `codex/clearpath-review-workbench` in the existing private repository.
+
+## Follow-up: list performance
+
+- [x] Measure the hosted baseline, remove repeated detail hydration, and reuse summaries within each request.
+- [x] Replace expensive sequential initialization with guarded atomic bulk inserts and preserve seed ordering.
+- [x] Apply the workspace/order index on Neon, integrate Claude's review, and pass all 92 tests and both type checks.
+- [x] Deploy API revision `67j4axdcs13z`; pass the hosted smoke and three-visitor concurrency checks. Record [before/after timings](../../reviews/2026-11-03-list-performance.md).

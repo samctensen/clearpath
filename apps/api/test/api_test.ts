@@ -274,7 +274,7 @@ Deno.test("configured web origin is accepted by a separate API host and other or
 Deno.test("workspace seeding failure returns an error and does not issue a cookie", async () => {
   const store = await createTestStore();
   const offers = (await import("../../../packages/checks/catalog.ts")).offers;
-  store.createCase = async () => ({
+  store.createSeededWorkspace = async () => ({
     ok: false,
     error: { code: "storage", message: "Unable to access storage" },
   });
@@ -320,6 +320,87 @@ Deno.test("recovers an existing empty workspace by issuing a newly seeded worksp
     assert.ok(response.headers["set-cookie"]);
   } finally {
     await before.close();
+    await app.close();
+    await store.close();
+  }
+});
+
+Deno.test("returning queue request loads summaries once", async () => {
+  const store = await createTestStore();
+  const offers = (await import("../../../packages/checks/catalog.ts")).offers;
+  const app = await createApiServer({
+    store,
+    analyze: () => analysis,
+    offers,
+    policyVersion: "test",
+    cookieSecret: "a".repeat(32),
+  });
+  try {
+    const initial = await app.inject({ method: "GET", url: "/api/cases" });
+    const cookie = initial.headers["set-cookie"] as string;
+    let calls = 0;
+    const original = store.listCases.bind(store);
+    store.listCases = (workspace) => {
+      calls++;
+      return original(workspace);
+    };
+    const response = await app.inject({ method: "GET", url: "/api/cases", headers: { cookie } });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().length, 6);
+    assert.equal(calls, 1);
+  } finally {
+    await app.close();
+    await store.close();
+  }
+});
+
+Deno.test("demo initialization uses atomic workspace operation and retains review histories", async () => {
+  const { analyze, offers, POLICY_VERSION } = await import("@clearpath/checks");
+  const store = await createTestStore();
+  let calls = 0;
+  const original = store.createSeededWorkspace.bind(store);
+  store.createSeededWorkspace = (plans) => {
+    calls++;
+    return original(plans);
+  };
+  const app = await createApiServer({
+    store,
+    analyze,
+    offers,
+    policyVersion: POLICY_VERSION,
+    cookieSecret: "a".repeat(32),
+  });
+  try {
+    const one = await app.inject({ method: "GET", url: "/api/cases" }),
+      two = await app.inject({ method: "GET", url: "/api/cases" });
+    assert.equal(one.statusCode, 200);
+    assert.equal(two.statusCode, 200);
+    assert.equal(calls, 2);
+    const approved = one.json().find((c: { status: string }) => c.status === "approved");
+    const detail = await app.inject({
+      method: "GET",
+      url: `/api/cases/${approved.id}`,
+      headers: { cookie: one.headers["set-cookie"] as string },
+    });
+    assert.equal(detail.statusCode, 200);
+    assert.deepEqual(detail.json().events.map((e: { type: string }) => e.type), [
+      "submitted",
+      "approved",
+    ]);
+    const other = await app.inject({
+      method: "GET",
+      url: `/api/cases/${approved.id}`,
+      headers: { cookie: two.headers["set-cookie"] as string },
+    });
+    assert.equal(other.statusCode, 404);
+    const repeated = await app.inject({
+      method: "POST",
+      url: `/api/cases/${approved.id}/decision`,
+      headers: { cookie: one.headers["set-cookie"] as string, "content-type": "application/json" },
+      payload: { expectedRevision: 1, decision: "approve", note: "" },
+    });
+    assert.equal(repeated.statusCode, 409);
+  } finally {
     await app.close();
     await store.close();
   }

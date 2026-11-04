@@ -21,9 +21,11 @@ Vercel has `clearpathfinancial.xyz` and `www.clearpathfinancial.xyz` attached. P
 
 ## Hosted verification
 
-The hosted smoke test passed through the Vercel proxy against Neon on API revision `03gmk0t4mxa8`. It covered a new submission, blocked approval, a change request, revision, approval, stale-revision conflict, persistence, and workspace isolation. Initial demo workspace creation took 13.5 seconds in this run. The release uses sequential seeding after a parallel seeding attempt returned HTTP 500.
+The current API revision is `67j4axdcs13z`. Its full hosted smoke test passed through `https://clearpathfinancial.xyz` against Neon, covering a new submission, blocked approval, a change request, revision, approval, stale-revision conflict, persistence, and workspace isolation. Fresh workspace initialization took 1.1 seconds in that run. Three concurrent fresh visitors also passed with separate workspaces and chronological histories.
 
-After the certificate was issued, the same full workflow passed at `https://clearpathfinancial.xyz`, with a fresh workspace initialized in 11.4 seconds. The browser also loaded all six seeded cases through that HTTPS address.
+The list now reads current-revision summaries directly and demo creation uses one atomic transaction of bulk inserts. Before this deployment, the additive `cases_workspace_updated_id_idx` index was applied to Neon. Three benchmark samples showed median fresh/returning list latency of 1.06/0.44 seconds. See the [before/after measurements](reviews/2026-11-03-list-performance.md), including sampling limits and the repeatable command.
+
+For historical context, the earlier revision `03gmk0t4mxa8` used sequential seeding after a parallel seeding attempt returned HTTP 500. Its workflow checks passed but initialization took 13.5 seconds through the fallback domain and 11.4 seconds through the custom domain. The browser loaded all six cases through HTTPS after the certificate was issued.
 
 A subsequent Brave browser check at 390 × 844 verified the queue, new-submission form, and review page. A newly entered launch date persisted, an unseen 18-month card promotion produced the expected mismatch, and approval remained disabled. The input was exercised through native segmented keyboard entry; the automation helper's date `fill` operation did not commit a value.
 
