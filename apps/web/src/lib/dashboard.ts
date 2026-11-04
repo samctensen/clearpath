@@ -1,8 +1,9 @@
-import type { CaseStatus, CaseSummary, DemoRole, ProductId, QueueCohortItem } from "@clearpath/contracts";
+import type { CaseStatus, CaseSummary, DemoRole, ProductId, QueueCohortItem, SubmitterView } from "@clearpath/contracts";
 
 export type DashboardStatus = CaseStatus | "all";
 export type DashboardFilters = {
   status: DashboardStatus;
+  view: SubmitterView;
   product: ProductId | "all";
   search: string;
   sort: "asc" | "desc";
@@ -17,6 +18,7 @@ export const dashboardStatuses: CaseStatus[] = [
 
 export const defaultDashboardFilters: DashboardFilters = {
   status: "all",
+  view: "all",
   product: "all",
   search: "",
   sort: "asc",
@@ -24,15 +26,18 @@ export const defaultDashboardFilters: DashboardFilters = {
 
 const dashboardProducts: ProductId[] = ["card", "personal_loan", "mortgage", "unknown"];
 
-export function parseDashboardFilters(value: unknown): DashboardFilters {
+export const dashboardFilterStorageKey = (role: DemoRole) => `clearpath-dashboard-filters-v2-${role}`;
+
+export function parseDashboardFilters(value: unknown, role: DemoRole = "reviewer"): DashboardFilters {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { ...defaultDashboardFilters };
   }
   const saved = value as Record<string, unknown>;
   return {
-    status: saved.status === "all" || dashboardStatuses.includes(saved.status as CaseStatus)
+    status: role === "submitter" ? "all" : saved.status === "all" || dashboardStatuses.includes(saved.status as CaseStatus)
       ? saved.status as DashboardStatus
       : defaultDashboardFilters.status,
+    view: role === "submitter" && ["all", "needs_attention", "awaiting_review", "approved"].includes(String(saved.view)) ? saved.view as SubmitterView : "all",
     product: saved.product === "all" || dashboardProducts.includes(saved.product as ProductId)
       ? saved.product as DashboardFilters["product"]
       : defaultDashboardFilters.product,
@@ -63,7 +68,8 @@ export function dashboardRequest(
   const params = new URLSearchParams({
     q,
     product: filters.product,
-    status: filters.status,
+    status: role === "submitter" && filters.view !== "all" ? "all" : filters.status,
+    view: role === "submitter" ? filters.view : "all",
     sort: "launchDate",
     direction: filters.sort,
     role,

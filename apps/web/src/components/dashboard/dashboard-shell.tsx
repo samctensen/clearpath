@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import type { DemoRole } from "@clearpath/contracts";
 import { usePathname } from "next/navigation";
 import { DashboardIcon } from "./dashboard-icon";
 import styles from "./dashboard-shell.module.css";
@@ -25,7 +26,7 @@ function Wordmark() {
   );
 }
 
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({ children, role }: { children: ReactNode; role: DemoRole }) {
   const pathname = usePathname();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
@@ -60,10 +61,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </button>
         </div>
         <nav id={navigationId} className={styles.nav} aria-label="Workspace" data-open={navigationOpen}>
-          {navItems.map((item) => (
+          {navItems.filter(item => role === "reviewer" || item.href !== "/decisions").map((item) => (
             <Link key={item.label} href={item.href} className={styles.navLink} onClick={() => setNavigationOpen(false)} aria-current={(item.href === "/" ? pathname === "/" || pathname.startsWith("/cases/") || pathname === "/new" : pathname === item.href || pathname.startsWith(`${item.href}/`)) ? "page" : undefined}>
               <DashboardIcon name={item.icon} size={15} className={styles.navIcon} />
-              <span>{item.label}</span>
+              <span>{item.href === "/" && role === "submitter" ? "Submissions" : item.label}</span>
             </Link>
           ))}
         </nav>

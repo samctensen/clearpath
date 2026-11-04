@@ -6,6 +6,7 @@ import {
   dashboardRequest,
   defaultDashboardFilters,
   parseDashboardFilters,
+  dashboardFilterStorageKey,
 } from "../apps/web/src/lib/dashboard.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
@@ -35,13 +36,13 @@ function submission(id: string, overrides: Partial<CaseSummary> = {}): CaseSumma
 const ids = (cases: CaseSummary[]) => cases.map((item) => item.id);
 
 Deno.test("dashboard requests encode literal searches and send sorting to the API", () => {
-  const request = dashboardRequest({ status: "approved", product: "card", search: "  50% + A&B_  ", sort: "desc" }, "submitter", "2026-11-04");
+  const request = dashboardRequest({ status: "approved", view: "all", product: "card", search: "  50% + A&B_  ", sort: "desc" }, "submitter", "2026-11-04");
   const url = new URL(request.path, "http://clearpath.test");
   assertEquals(url.pathname, "/dashboard");
   const query: Record<string, string> = {};
   url.searchParams.forEach((value, key) => { query[key] = value; });
   assertEquals(query, {
-    q: "50% + A&B_", product: "card", status: "approved", sort: "launchDate",
+    q: "50% + A&B_", product: "card", status: "approved", view: "all", sort: "launchDate",
     direction: "desc", role: "submitter", today: "2026-11-04", limit: "10", scope: "full",
   });
 });
@@ -294,7 +295,7 @@ Deno.test("creation ties use timestamps and put missing or impossible creation d
 });
 
 Deno.test("invalid restored filters fall back field by field without losing valid choices", () => {
-  const defaults = { status: "all", product: "all", search: "", sort: "asc" };
+  const defaults = { status: "all", view: "all", product: "all", search: "", sort: "asc" };
   for (const invalid of [null, undefined, false, 7, "all", [], ["approved"]]) {
     assertEquals(parseDashboardFilters(invalid), defaults);
   }
@@ -314,7 +315,7 @@ Deno.test("invalid restored filters fall back field by field without losing vali
       search: " Name ",
       sort: "desc",
     }),
-    { status: "needs_information", product: "unknown", search: " Name ", sort: "desc" },
+    { status: "needs_information", view: "all", product: "unknown", search: " Name ", sort: "desc" },
   );
   assertEquals(
     parseDashboardFilters({
@@ -323,7 +324,7 @@ Deno.test("invalid restored filters fall back field by field without losing vali
       search: "Northstar",
       sort: false,
     }),
-    { status: "approved", product: "all", search: "Northstar", sort: "asc" },
+    { status: "approved", view: "all", product: "all", search: "Northstar", sort: "asc" },
   );
 });
 
@@ -349,4 +350,21 @@ Deno.test("deriving and sorting leave case arrays, case fields, and saved filter
   restored.search = "changed";
   assertEquals(parseDashboardFilters(null).search, "");
   assertEquals(defaultDashboardFilters.search, "");
+});
+
+Deno.test("submitter grouped views travel to the server without contradictory status filters", () => {
+  const filters = { ...defaultDashboardFilters, view: "needs_attention" as const, status: "approved" as const };
+  const params = new URL(dashboardRequest(filters, "submitter", "2026-11-04").path, "http://clearpath.test").searchParams;
+  assertEquals(params.get("view"), "needs_attention");
+  assertEquals(params.get("status"), "all");
+  const reviewer = new URL(dashboardRequest(filters, "reviewer", "2026-11-04").path, "http://clearpath.test").searchParams;
+  assertEquals(reviewer.get("view"), "all");
+  assertEquals(reviewer.get("status"), "approved");
+});
+
+Deno.test("role filter storage is independent and legacy filters cannot hide submitter work", () => {
+  assertEquals(dashboardFilterStorageKey("reviewer") === dashboardFilterStorageKey("submitter"), false);
+  assertEquals(parseDashboardFilters({ status: "approved", view: "needs_attention" }, "submitter").status, "all");
+  assertEquals(parseDashboardFilters({ view: "needs_attention" }, "reviewer").view, "all");
+  assertEquals(parseDashboardFilters({ status: "approved" }, "submitter").view, "all");
 });

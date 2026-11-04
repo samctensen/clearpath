@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId } from "@clearpath/contracts";
+import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId, type DemoRole, type SubmitterView } from "@clearpath/contracts";
 import { useDashboard } from "@/lib/use-dashboard";
-import { dashboardStatuses, defaultDashboardFilters, firstQueuePage, parseDashboardFilters, type DashboardFilters, type DashboardStatus, type QueuePosition } from "@/lib/dashboard";
+import { dashboardStatuses, dashboardFilterStorageKey, defaultDashboardFilters, firstQueuePage, parseDashboardFilters, type DashboardFilters, type DashboardStatus, type QueuePosition } from "@/lib/dashboard";
 import { useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
+import { SubmitterDashboard } from "./submissions/submitter-dashboard";
 import { ReviewMap } from "./dashboard/review-map";
 import { QueueRowsLoading, ReviewMapLoading, UpNextLoading } from "./dashboard/dashboard-loading";
 import { CustomSelect } from "./ui/custom-select";
@@ -16,7 +17,6 @@ import { QueueActionDialog, type QueueAction } from "./dashboard/queue-action-di
 import actionStyles from "./dashboard/queue-row-actions.module.css";
 import styles from "./dashboard/review-dashboard.module.css";
 
-const filtersKey = "clearpath-dashboard-filters-v1";
 const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const statusColor: Record<CaseStatus, string> = {
   ready_for_review: "var(--dash-ready)", needs_information: "var(--dash-info)",
@@ -31,12 +31,19 @@ function targetLabel(value: string) {
     ? dateFormat.format(date) : "Date unavailable";
 }
 
-function Status({ status }: { status: CaseStatus }) {
-  return <span className={styles.status} data-status={status}><i style={{ background: statusColor[status] }} aria-hidden="true" />{statusLabels[status]}</span>;
+function Status({ status, role }: { status: CaseStatus; role: DemoRole }) {
+  return <span className={styles.status} data-status={status}><i style={{ background: statusColor[status] }} aria-hidden="true" />{role === "submitter" && status === "ready_for_review" ? "Awaiting review" : statusLabels[status]}</span>;
 }
 
 export function ReviewQueue() {
   const role = useDemoRole();
+  // A role change discards cursors, dialogs, selection and held requests together.
+  return <RoleQueue key={role} role={role} />;
+}
+
+function RoleQueue({ role }: { role: DemoRole }) {
+  const filtersKey = dashboardFilterStorageKey(role);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<DashboardFilters>(defaultDashboardFilters);
   const [restored, setRestored] = useState(false);
   const [today, setToday] = useState("");
@@ -60,16 +67,17 @@ export function ReviewQueue() {
   }, [actionNotice]);
 
   useEffect(() => {
-    try { setFilters(parseDashboardFilters(JSON.parse(sessionStorage.getItem(filtersKey) ?? "null"))); } catch { /* Storage is optional. */ }
+    try { setFilters(parseDashboardFilters(JSON.parse(sessionStorage.getItem(filtersKey) ?? "null"), role)); } catch { /* Storage is optional. */ }
     setRestored(true);
     const now = new Date();
     setToday(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`);
-  }, []);
+    document.title = role === "reviewer" ? "Review desk" : "Submissions";
+  }, [filtersKey, role]);
   useEffect(() => {
     if (restored) {
       try { sessionStorage.setItem(filtersKey, JSON.stringify(filters)); } catch { /* Browsing still works without storage. */ }
     }
-  }, [filters, restored]);
+  }, [filters, restored, filtersKey]);
 
   // Any change to the query invalidates the cursor, so every filter change returns to page one.
   const update = (patch: Partial<DashboardFilters>) => {
@@ -82,6 +90,7 @@ export function ReviewQueue() {
   };
   const cohort = resource.cohort;
   const overview = resource.overview;
+  const attention = resource.attention ?? [];
   const rows = resource.rows ?? [];
   const page = resource.page;
   const workspaceTotal = resource.workspaceTotal ?? 0;
@@ -91,16 +100,49 @@ export function ReviewQueue() {
   const failed = !loading && Boolean(resource.error);
   const overviewLoading = !overview && !failed;
   const toggleSort = () => update({ sort: filters.sort === "asc" ? "desc" : "asc" });
+  useEffect(() => {
+    if (!cohort) return;
+    setSelectedId(current => current && cohort.some(item => item.id === current)
+      ? current : attention[0]?.id ?? rows[0]?.id ?? null);
+  }, [cohort, attention, rows]);
+  const currentSelection = cohort
+    ? selectedId && cohort.some(item => item.id === selectedId) ? selectedId : attention[0]?.id ?? rows[0]?.id ?? null
+    : null;
+  const viewTabs: { value: SubmitterView; label: string; count: number | undefined }[] = [
+    { value: "all", label: "All", count: overview?.total },
+    { value: "needs_attention", label: "Needs attention", count: overview ? overview.counts.changes_requested + overview.counts.needs_information : undefined },
+    { value: "awaiting_review", label: "Awaiting review", count: overview?.counts.ready_for_review },
+    { value: "approved", label: "Copy approved", count: overview?.counts.approved },
+  ];
+  function previewJourney(id: string) {
+    setSelectedId(id);
+    requestAnimationFrame(() => {
+      const journey = document.getElementById("submission-journey");
+      journey?.focus({ preventScroll: true });
+      journey?.scrollIntoView({ block: window.matchMedia("(max-width: 900px)").matches ? "start" : "nearest", behavior: "auto" });
+    });
+  }
+  function showAttention() {
+    update({ view: "needs_attention", status: "all" });
+    queueHeading.current?.focus({ preventScroll: true });
+    queueHeading.current?.scrollIntoView({ block: "start" });
+  }
 
   return <div className={styles.dashboard}>
-    <PageHeader title="Review desk" actions={<>
+    <PageHeader title={role === "reviewer" ? "Review desk" : "Submissions"} actions={<>
       <HeaderSearch label="Search campaigns or publishers" placeholder="Search campaigns or publishers" maxLength={200} value={filters.search} onChange={search => update({ search })} />
       <CustomSelect className={styles.product} label="Filter by product" value={filters.product} options={productOptions} onChange={product => update({ product: product as ProductId | "all" })} />
-      <Link href="/new" className={styles.primary}><Icon name="plus" size={14} />New submission</Link>
+      <Link href="/new" className={role === "submitter" ? styles.primary : styles.secondary}><Icon name="plus" size={14} />New submission</Link>
+      {role === "reviewer" && overview?.actionable[0] && <Link href={`/cases/${encodeURIComponent(overview.actionable[0].id)}`} className={styles.primary}>Open next review<Icon name="arrow-right" size={14} /></Link>}
     </>} />
 
     {failed && <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load submissions</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div>}
-      <div className={styles.overviewGrid}>
+      {role === "submitter" ? <SubmitterDashboard
+        attention={attention} attentionTotal={actionableCount} selectedId={currentSelection}
+        refreshGeneration={resource.refreshGeneration} loading={overviewLoading}
+        error={failed ? resource.error : null} onSelect={previewJourney}
+        onViewAttention={showAttention} onRetry={resource.reload}
+      /> : <div className={styles.overviewGrid}>
         {!cohort ? <ReviewMapLoading unavailable={failed} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} /> : <ReviewMap cases={cohort} preferredCaseId={overview?.actionable[0]?.id} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />}
         <section className={styles.nextPanel} aria-labelledby="next-title" aria-busy={overviewLoading}>
           <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div></div>
@@ -112,24 +154,32 @@ export function ReviewQueue() {
           {overview && actionableCount > overview.actionable.length && <div className={styles.nextFooter}><span>Showing {overview.actionable.length} of {actionableCount}</span><Link href="#submissions" onClick={() => update({ status: "all" })}>View queue</Link></div>}
           {overview && overview.overdueCount > 0 && <p className={styles.overdueNote}>{overview.overdueCount} open {overview.overdueCount === 1 ? "submission past its target" : "submissions past their targets"}</p>}
         </section>
-      </div>
-      {scoped && <p className={styles.cohortNote}>Chart and queue reflect your search and product filters.</p>}
+      </div>}
+      {scoped && <p className={styles.cohortNote}>{role === "submitter" ? "Attention, journey and list" : "Chart and queue"} reflect your search and product filters.</p>}
 
       <section id="submissions" className={styles.queue} aria-labelledby="queue-title" aria-busy={loading}>
-        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Your submissions"}</h2>{!loading && !failed && <span>{page.total}</span>}</div><div className={styles.queueControls}>
-          <CustomSelect className={styles.statusFilter} label="Filter queue by status" value={filters.status} options={statusOptions} onChange={status => update({ status: status as DashboardStatus })} />
+        <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title" ref={queueHeading} tabIndex={-1}>{role === "reviewer" ? "Review queue" : "Workspace submissions"}</h2>{!loading && !failed && <span>{page.total}</span>}</div><div className={styles.queueControls}>
+          {role === "reviewer" && <CustomSelect className={styles.statusFilter} label="Filter queue by status" value={filters.status} options={statusOptions} onChange={status => update({ status: status as DashboardStatus })} />}
           <button type="button" className={styles.sortButton} onClick={toggleSort} aria-label={filters.sort === "asc" ? "Sort latest target first" : "Sort earliest target first"}><Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={12} />Target date</button>
         </div></div>
+        {role === "submitter" && <div className={styles.submissionViews}>
+          <div className={styles.viewTabs} role="group" aria-label="Filter submissions">
+            {viewTabs.map(tab => <button key={tab.value} type="button" aria-pressed={filters.view === tab.value} onClick={() => update({ view: tab.value, status: "all" })}>{tab.label}{tab.count !== undefined && <span>{tab.count}</span>}</button>)}
+          </div><p>Filters the list below</p>
+        </div>}
         {loading && <p className="sr-only" role="status">Loading submissions</p>}
         {loading || rows.length ? <div className={styles.tableWrap}><table className={styles.table}>
-          <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">Copy checks</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th><th scope="col" className={styles.rowActions}><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">{role === "reviewer" ? "Copy checks" : "Next step"}</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th><th scope="col" className={styles.rowActions}><span className="sr-only">Actions</span></th></tr></thead>
           {loading ? <QueueRowsLoading /> : <tbody>{rows.map(item => <tr key={item.id} className={styles.queueRow}>
             <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
-            <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unknown</small>}</div></td>
+            {role === "reviewer" ? <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unknown</small>}</div></td> : <td data-label="Next step" className={styles.nextStep}>
+              <span>{item.status === "changes_requested" ? "Revise copy" : item.status === "needs_information" ? "Add information" : item.status === "ready_for_review" ? "Awaiting human review" : "View approved revision"}</span>
+              <small>{item.guidance?.kind === "awaiting_review" ? <>Revision {item.guidance.revision} submitted {targetLabel(item.guidance.recordedAt.slice(0, 10))}</> : item.guidance?.kind === "reviewer_feedback" ? <>Reviewer feedback on revision {item.guidance.revision}</> : item.guidance?.kind === "missing_information" ? "Automated check needs context" : item.guidance?.kind === "approved_copy" ? <>Approval applies to revision {item.guidance.revision}</> : "Open submission for details"}</small>
+            </td>}
             <td data-label="Target date" className={styles.date}>{targetLabel(item.launchDate)}</td>
-            <td data-label="Status"><Status status={item.status} /></td>
-            <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} status={item.status} role={role} onAction={(kind, trigger) => { setActionNotice(""); setAction({ kind, caseId: item.id, title: item.title, trigger, role }); }} /></td>
+            <td data-label="Status"><Status status={item.status} role={role} /></td>
+            <td className={styles.rowActions}><QueueRowActions caseId={item.id} title={item.title} status={item.status} role={role} onPreview={role === "submitter" ? () => previewJourney(item.id) : undefined} onAction={(kind, trigger) => { setActionNotice(""); setAction({ kind, caseId: item.id, title: item.title, trigger, role }); }} /></td>
           </tr>)}</tbody>}
         </table></div> : failed ? <div className={styles.empty}><Icon name="circle-exclamation" size={24} /><h3>Submissions are unavailable</h3><p>Try loading again to see the queue. Your filters are saved.</p></div> : <div className={styles.empty}><Icon name={workspaceTotal ? "magnifying-glass" : "file-lines"} size={27} /><h3>{workspaceTotal ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{workspaceTotal ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{workspaceTotal ? <button type="button" className={styles.secondary} onClick={resetFilters}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
         <footer className={styles.queueFooter}>
@@ -138,8 +188,8 @@ export function ReviewQueue() {
             <button type="button" className={styles.pagerStep} aria-label="Previous page" disabled={!page.hasPrev || loading} onClick={() => setPosition({ after: null, before: page.startCursor })}><Icon name="arrow-left" size={12} /></button>
             <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!page.hasNext || loading} onClick={() => setPosition({ after: page.endCursor, before: null })}><Icon name="arrow-right" size={12} /></button>
           </div>}
-          {(scoped || filters.status !== "all") && <button type="button" onClick={resetFilters}>Reset filters</button>}
-          <span className={styles.checkNote}>Copy checks are automated findings, not all review concerns.</span>
+          {(scoped || filters.status !== "all" || filters.view !== "all") && <button type="button" onClick={resetFilters}>Reset filters</button>}
+          <span className={styles.checkNote}>{role === "reviewer" ? "Copy checks are automated findings, not all review concerns." : "Showing the shared demo workspace."}</span>
         </footer>
       </section>
       {action && <QueueActionDialog key={`${action.caseId}:${action.kind}`} caseId={action.caseId} title={action.title} action={action.kind} role={action.role} currentRole={role} onClose={closeAction} onSuccess={message => {

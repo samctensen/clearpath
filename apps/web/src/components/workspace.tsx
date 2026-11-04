@@ -33,7 +33,7 @@ export function Workspace({ children }: { children: ReactNode }) {
   return (
     <RoleContext.Provider value={role}>
       <RoleChangeContext.Provider value={changeRole}>
-        <DashboardShell>{children}</DashboardShell>
+        <DashboardShell role={role}>{children}</DashboardShell>
       </RoleChangeContext.Provider>
     </RoleContext.Provider>
   );

@@ -8,12 +8,13 @@ import type { QueueAction } from "./queue-action-dialog";
 import { DashboardIcon } from "./dashboard-icon";
 import styles from "./queue-row-actions.module.css";
 
-export function QueueRowActions({ caseId, title, status, role, onAction }: {
+export function QueueRowActions({ caseId, title, status, role, onAction, onPreview }: {
   caseId: string;
   title: string;
   status: CaseStatus;
   role: DemoRole;
   onAction: (action: QueueAction, trigger: HTMLButtonElement | null) => void;
+  onPreview?: () => void;
 }) {
   const canDecide = role === "reviewer" && (status === "ready_for_review" || status === "needs_information");
   const canDelete = role === "submitter" && status !== "approved";
@@ -119,10 +120,11 @@ export function QueueRowActions({ caseId, title, status, role, onAction }: {
         <button role="menuitem" tabIndex={-1} type="button" onClick={() => begin("approve")}><DashboardIcon name="check" size={15} />Approve copy</button>
         <button role="menuitem" tabIndex={-1} type="button" onClick={() => begin("request_changes")}><DashboardIcon name="message-plus" size={15} />Request changes</button>
       </>}
+      {role === "submitter" && onPreview && <button role="menuitem" tabIndex={-1} type="button" onClick={() => { close(); onPreview(); }}><DashboardIcon name="clock" size={15} />Preview journey</button>}
       {role === "submitter" && <Link role="menuitem" tabIndex={-1} href={`${href}?intent=revise`} onClick={() => close()}><DashboardIcon name="pen" size={15} />Revise submission</Link>}
       {canDelete && <button role="menuitem" tabIndex={-1} type="button" className={styles.danger} onClick={() => begin("delete")}><DashboardIcon name="trash-can" size={15} />Delete submission</button>}
       {(canDecide || role === "submitter") && <div className={styles.separator} role="separator" />}
-      <Link role="menuitem" tabIndex={-1} href={href} onClick={() => close()}><DashboardIcon name="file-lines" size={15} />Open review</Link>
+      <Link role="menuitem" tabIndex={-1} href={href} onClick={() => close()}><DashboardIcon name="file-lines" size={15} />{role === "submitter" ? "Open submission" : "Open review"}</Link>
       <a role="menuitem" tabIndex={-1} href={href} target="_blank" rel="noopener noreferrer" onClick={() => close(true)}><DashboardIcon name="arrow-up-right" size={15} />Open in new tab</a>
       <button role="menuitem" tabIndex={-1} type="button" onClick={copyLink}><DashboardIcon name="link" size={15} />Copy review link</button>
     </div>, document.body)}

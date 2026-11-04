@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   DashboardOverview,
   DashboardResponse,
+  DashboardRow,
   DemoRole,
   QueueCohortItem,
   QueuePage,
@@ -18,6 +19,7 @@ type QueryState = {
   failure: { requestKey: string; message: string } | null;
   cohort: Held<QueueCohortItem[]>;
   overview: Held<DashboardOverview>;
+  attention: Held<DashboardRow[]>;
 };
 
 const emptyPage: QueuePage = {
@@ -48,13 +50,14 @@ export function useDashboard(
     failure: null,
     cohort: null,
     overview: null,
+    attention: null,
   });
   const previousSearch = useRef<string | null>(null);
   const chosenScope = useRef<{ key: string; scope: "full" | "page" } | null>(null);
 
   const { cohortKey, overviewKey } = dashboardRequest(filters, role, today, position);
   const paging = position.after !== null || position.before !== null;
-  const held = state.cohort?.key === cohortKey && state.overview?.key === overviewKey;
+  const held = state.cohort?.key === cohortKey && state.overview?.key === overviewKey && (role !== "submitter" || state.attention?.key === overviewKey);
   // Pin the scope per position, so answering a request can never change the next URL.
   const scopeKey = JSON.stringify([cohortKey, overviewKey, position, attempt]);
   if (chosenScope.current?.key !== scopeKey) {
@@ -78,6 +81,7 @@ export function useDashboard(
             failure: null,
             cohort: data.cohort ? { key: cohortKey, value: data.cohort } : current.cohort,
             overview: data.overview ? { key: overviewKey, value: data.overview } : current.overview,
+            attention: data.submitterAttention ? { key: overviewKey, value: data.submitterAttention } : current.attention,
           }));
         })
         .catch((error: unknown) => {
@@ -101,8 +105,13 @@ export function useDashboard(
     workspaceTotal: current?.workspaceTotal ?? null,
     cohort: enabled && state.cohort?.key === cohortKey ? state.cohort.value : null,
     overview: enabled && state.overview?.key === overviewKey ? state.overview.value : null,
+    attention: enabled && state.attention?.key === overviewKey ? state.attention.value : null,
+    refreshGeneration: attempt,
     loading: !current && !error,
     error,
-    reload: () => setAttempt(value => value + 1),
+    reload: () => {
+      setState(current => ({ ...current, cohort: null, overview: null, attention: null }));
+      setAttempt(value => value + 1);
+    },
   };
 }

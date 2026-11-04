@@ -72,6 +72,7 @@ export function DashboardUserMenu({ role, onRoleChange }: { role: DemoRole; onRo
           <div className={styles.userLinks}>
             <Link href="/new" onClick={() => setOpen(false)}>New submission</Link>
             <Link href="/catalog" onClick={() => setOpen(false)}>Offer library</Link>
+            <Link href="/decisions" onClick={() => setOpen(false)}>Decision log</Link>
           </div>
           <p className={styles.userNote}>Fictional demo workspace. No sign-in or account.</p>
         </div>
