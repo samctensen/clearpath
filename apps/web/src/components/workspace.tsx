@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { DemoRole } from "@clearpath/contracts";
 import { DashboardShell } from "./dashboard/dashboard-shell";
+import { DraftGuardProvider, useDraftGuard } from "./draft-guard";
 
 const roleKey = "clearpath-demo-role";
 const RoleContext = createContext<DemoRole>("reviewer");
@@ -19,6 +20,11 @@ export function useChangeDemoRole() {
 }
 
 export function Workspace({ children }: { children: ReactNode }) {
+  return <DraftGuardProvider><WorkspaceContent>{children}</WorkspaceContent></DraftGuardProvider>;
+}
+
+function WorkspaceContent({ children }: { children: ReactNode }) {
+  const { requestLeave } = useDraftGuard();
   const [role, setRole] = useState<DemoRole>("reviewer");
 
   useEffect(() => {
@@ -26,8 +32,11 @@ export function Workspace({ children }: { children: ReactNode }) {
   }, []);
 
   function changeRole(next: DemoRole) {
-    setRole(next);
-    window.localStorage.setItem(roleKey, next);
+    if (next === role) return;
+    requestLeave(() => {
+      setRole(next);
+      window.localStorage.setItem(roleKey, next);
+    });
   }
 
   return (

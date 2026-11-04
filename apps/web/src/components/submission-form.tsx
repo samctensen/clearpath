@@ -7,8 +7,12 @@ import {
   assetFormats, formatLabels, productIds, productLabels, submissionSchema,
   type Analysis, type AssetFormat, type CaseDetail, type Offer, type ProductId, type SubmissionInput,
 } from "@clearpath/contracts";
-import { api, errorMessage, type CatalogData } from "@/lib/api";
+import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { type SubmissionDraftInput } from "@/lib/submission-draft";
+import { useSubmissionDraft } from "@/lib/use-submission-draft";
+import { DraftConflictRecovery } from "./draft-conflict";
+import draftStyles from "./draft-safety.module.css";
 import { AnalysisSummary, CheckEvidence } from "./check-evidence";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { ErrorMessage } from "./ui";
@@ -19,10 +23,11 @@ import styles from "./submission-form.module.css";
 
 const emptyInput: SubmissionInput = {
   title: "", productId: "unknown", offerId: null, publisher: "", format: "unknown",
-  launchDate: "", content: "", completeAsset: true, linksToApplication: null, substantiation: "",
+  launchDate: "", content: "", completeAsset: false, linksToApplication: null, substantiation: "",
 };
 
 export function NewSubmission() {
+  const role = useDemoRole();
   const searchParams = useSearchParams();
   const exampleId = searchParams.get("example");
   const requestedProduct = searchParams.get("product");
@@ -31,7 +36,7 @@ export function NewSubmission() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="New submission" description="Prepare campaign copy for review." back={{ href: "/", label: "Review queue" }} />
+      <PageHeader title="New submission" description="Prepare campaign copy for review." back={{ href: "/", label: role === "submitter" ? "Submissions" : "Review queue" }} />
       <NewSubmissionDraft key={exampleId ?? productId} exampleId={exampleId} productId={productId} catalog={catalog} />
     </div>
   );
@@ -65,6 +70,7 @@ function NewSubmissionDraft({ exampleId, productId, catalog }: { exampleId: stri
   return (
     <SubmissionForm
       initial={startingInput}
+      draftScope={`new:${exampleId ?? productId}`}
       catalog={catalog}
       onCancel={() => router.push("/")}
       onSave={(input, role) => api<CaseDetail>("/cases", { body: input, role })}
@@ -88,30 +94,35 @@ function SubmissionSkeleton({ paused = false }: { paused?: boolean }) {
   );
 }
 
-export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, onCancel }: {
+export function SubmissionForm({ initial, catalog, revision, casePath, draftScope = "new:unknown", onSave, onSaved, onCancel }: {
   initial: SubmissionInput;
   catalog: CatalogResource;
   revision?: number;
-  onSave: (input: SubmissionInput, role: ReturnType<typeof useDemoRole>) => Promise<CaseDetail>;
+  casePath?: string;
+  draftScope?: string;
+  onSave: (input: SubmissionInput, role: ReturnType<typeof useDemoRole>, expectedRevision?: number) => Promise<CaseDetail>;
   onSaved: (detail: CaseDetail) => void;
   onCancel: () => void;
 }) {
   const role = useDemoRole();
   const fieldId = useId();
-  const [input, setInput] = useState(initial);
   const [preview, setPreview] = useState<Analysis | null>(null);
   const [hasChecked, setHasChecked] = useState(false);
   const [pending, setPending] = useState<"analyze" | "save" | null>(null);
+  const draft = useSubmissionDraft(initial, revision, casePath ?? draftScope, pending === "save");
+  const { input, setInput, expectedRevision } = draft;
+  const [conflict, setConflict] = useState(false);
+  const needsLatest = conflict || (revision !== undefined && expectedRevision !== undefined && expectedRevision < revision);
   const [error, setError] = useState("");
   const [errorTarget, setErrorTarget] = useState<"analyze" | "save">("save");
   const offers: Offer[] = catalog.data?.offers ?? [];
   const matchingOffers = offers.filter((offer) => offer.productId === input.productId);
   const selectedOffer = offers.find((offer) => offer.id === input.offerId);
-  const isPending = Boolean(pending);
+  const isPending = Boolean(pending) || !draft.ready || Boolean(draft.recovery);
   const previewConcerns = preview?.checks.filter((check) => check.status === "finding" || check.status === "unknown") ?? [];
   const previewOtherChecks = preview?.checks.filter((check) => check.status === "passed" || check.status === "not_applicable") ?? [];
 
-  function update<K extends keyof SubmissionInput>(key: K, value: SubmissionInput[K]) {
+  function update<K extends keyof SubmissionDraftInput>(key: K, value: SubmissionDraftInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
     setPreview(null);
   }
@@ -135,9 +146,14 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
   }
 
   async function run(mode: "analyze" | "save") {
-    if (pending) return;
+    if (isPending || (mode === "save" && needsLatest)) return;
     setError("");
     setErrorTarget(mode);
+    if (input.completeAsset === null) {
+      setError("Copy provided: choose Complete asset or Excerpt only before continuing.");
+      document.getElementById(`${fieldId}-complete`)?.focus();
+      return;
+    }
     const parsed = submissionSchema.safeParse(input);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -151,10 +167,15 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
         setPreview(await api<Analysis>("/analyze", { body: parsed.data, role }));
         setHasChecked(true);
       } else {
-        onSaved(await onSave(parsed.data, role));
+        const saved = await onSave(parsed.data, role, expectedRevision);
+        draft.saved();
+        onSaved(saved);
       }
     } catch (failure) {
-      setError(errorMessage(failure));
+      if (mode === "save" && revision !== undefined && failure instanceof ApiError && failure.status === 409) {
+        setConflict(true);
+        setError("The saved revision changed. Your draft is preserved; review the latest revision above before submitting again.");
+      } else setError(errorMessage(failure));
     } finally {
       setPending(null);
     }
@@ -175,20 +196,27 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
   return (
     <form className={`${styles.layout} ${styles.form}`} onSubmit={submit}>
       <div className={styles.editor}>
+        {draft.recovery && <section className={draftStyles.notice} aria-label="Recover unsent draft">
+          <strong>An unsent draft is available{draft.recovery.baseRevision !== null ? ` from revision ${draft.recovery.baseRevision}` : ""}</strong>
+          <p>Restore the copy and context you left in this tab, or discard that draft to use the saved fields below.</p>
+          <div className={draftStyles.actions}><button className="button primary" type="button" onClick={() => { if (draft.recovery?.baseRevision !== (revision ?? null)) setConflict(true); draft.restore(); }}>Restore draft</button><button className="button secondary" type="button" onClick={draft.discard}>Discard saved draft</button></div>
+        </section>}
+        {draft.storageFailed && <div className={draftStyles.notice} role="status"><strong>Draft recovery is limited</strong><p>Your unsent changes can be recovered while you stay in this app. Reloading or closing this tab may lose them.</p></div>}
+        {needsLatest && casePath && <DraftConflictRecovery casePath={casePath} baseRevision={expectedRevision} input={input} onContinue={latest => { draft.acceptLatest(latest.input, latest.number); setConflict(false); setError(""); setPreview(null); }} />}
         <fieldset disabled={isPending} className={styles.fields}>
           <section className={styles.section} aria-labelledby={`${fieldId}-context`}>
             <div className={styles.sectionHeading}>
-              <div><h2 id={`${fieldId}-context`}>Campaign context</h2><p>Give your reviewer the details behind the copy.</p></div>
-              {revision !== undefined && <span className={styles.revision}>Revision {revision + 1}</span>}
+              <div><h2 id={`${fieldId}-context`}>Campaign context</h2><p>Required fields are marked. Unknown context is allowed and may result in Needs information.</p></div>
+              {expectedRevision !== undefined && <span className={styles.revision}>Revision {expectedRevision + 1}</span>}
             </div>
             <div className={styles.fieldGrid}>
-              <label className={`${styles.field} ${styles.wide}`}>Campaign title
+              <label className={`${styles.field} ${styles.wide}`}>Campaign title (required)
                 <input required minLength={3} maxLength={160} value={input.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Spring card launch" />
               </label>
-              <label className={styles.field}>Publisher or partner
+              <label className={styles.field}>Publisher or partner (required)
                 <input required minLength={2} maxLength={100} value={input.publisher} onChange={(event) => update("publisher", event.target.value)} placeholder="e.g. ClearPath Marketing" />
               </label>
-              <label className={styles.field}>Target launch date
+              <label className={styles.field}>Target launch date (required)
                 <input type="date" required value={input.launchDate} onChange={(event) => update("launchDate", event.target.value)} />
               </label>
               <div className={styles.field}><label htmlFor={`${fieldId}-product`}>Product</label>
@@ -200,8 +228,8 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
               <div className={styles.field}><label htmlFor={`${fieldId}-format`}>Asset format</label>
                 <CustomSelect id={`${fieldId}-format`} label="Asset format" value={input.format} options={assetFormats.map((format) => ({ value: format, label: formatLabels[format] }))} onChange={(value) => changeFormat(value as AssetFormat)} disabled={isPending} />
               </div>
-              <div className={styles.field}><label htmlFor={`${fieldId}-complete`}>Copy provided</label>
-                <CustomSelect id={`${fieldId}-complete`} label="Copy provided" value={input.completeAsset ? "complete" : "excerpt"} options={[{ value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} disabled={isPending} />
+              <div className={styles.field}><label htmlFor={`${fieldId}-complete`}>Copy provided (required)</label>
+                <CustomSelect id={`${fieldId}-complete`} label="Copy provided (required)" value={input.completeAsset === null ? "" : input.completeAsset ? "complete" : "excerpt"} options={[{ value: "", label: "Choose completeness", disabled: true }, { value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} disabled={isPending} />
               </div>
               {input.format === "banner" && <div className={`${styles.field} ${styles.wide}`}><label htmlFor={`${fieldId}-application`}>Does the banner link to an application?</label>
                 <CustomSelect id={`${fieldId}-application`} label="Does the banner link to an application?" value={input.linksToApplication === null ? "" : String(input.linksToApplication)} options={[{ value: "", label: "Unknown" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }]} onChange={(value) => update("linksToApplication", value === "" ? null : value === "true")} disabled={isPending} />
@@ -211,7 +239,7 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
           </section>
           <section className={styles.section} aria-labelledby={`${fieldId}-copy-heading`}>
             <div className={styles.sectionHeading}><div><h2 id={`${fieldId}-copy-heading`}>Copy and evidence</h2><p>Include the exact wording customers will see, with disclosures.</p></div><DashboardIcon name="file-lines" size={19} /></div>
-            <label className={styles.field}><span className={styles.fieldLabel}>Marketing copy <small aria-hidden="true">{input.content.length.toLocaleString()} / 20,000</small></span>
+            <label className={styles.field}><span className={styles.fieldLabel}>Marketing copy (required) <small aria-hidden="true">{input.content.length.toLocaleString()} / 20,000</small></span>
               <textarea className={styles.copyInput} required minLength={10} maxLength={20000} rows={6} value={input.content} onChange={(event) => update("content", event.target.value)} placeholder="Paste the marketing copy here…" />
             </label>
             <label className={`${styles.field} ${styles.evidenceField}`}><span className={styles.fieldLabel}>Supporting evidence <small>Optional</small></span>
@@ -252,11 +280,12 @@ export function SubmissionForm({ initial, catalog, revision, onSave, onSaved, on
         <div className={styles.scopeNote}><DashboardIcon name="circle-info" size={16} /><p>Checks cover submitted text. Visual placement and presentation require separate review.</p></div>
       </aside>
       <div className={styles.formFooter}>
+        {draft.dirty && !draft.storageFailed && <p className={draftStyles.status} role="status">{draft.restored ? "Draft restored. " : ""}Unsent changes are kept in this tab until it is closed.</p>}
         {cannotRevise && <p className={styles.roleNote}>Switch to Submitter to submit this revision.</p>}
         {errorTarget === "save" && <ErrorMessage message={error} />}
         <div className={styles.submitRow}>
-          <button className="button ghost" type="button" disabled={isPending} onClick={onCancel}>Cancel</button>
-          <button className="button primary" type="submit" disabled={isPending || cannotRevise}>
+          <button className="button ghost" type="button" disabled={Boolean(pending)} onClick={() => draft.requestLeave(onCancel)}>Cancel</button>
+          <button className="button primary" type="submit" disabled={isPending || cannotRevise || needsLatest}>
             {pending === "save" ? "Submitting…" : revision === undefined ? "Submit for review" : "Submit new revision"}<DashboardIcon name="arrow-right" size={14} />
           </button>
         </div>
