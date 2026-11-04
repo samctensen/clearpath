@@ -21,7 +21,9 @@ function outcomeOf(check: CheckResult) {
  */
 export function ReviewCoverage({ analysis, onShowCheck }: { analysis: Analysis; onShowCheck: (ruleId: string) => void }) {
   const [active, setActive] = useState<number | null>(null);
-  const checks = analysis.checks;
+  const checks = coverageStates.flatMap(({ status }) =>
+    analysis.checks.filter((check) => check.status === status),
+  );
   const inspected = active === null ? null : checks[active] ?? null;
   return (
     <section className={styles.coverage} aria-label="Automated check coverage">
