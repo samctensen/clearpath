@@ -338,3 +338,64 @@ Deno.test("bulk seed preserves plan order and chronological disposition history"
     await store.close();
   }
 });
+
+Deno.test("dashboard SQL filters and sorts within one workspace while retaining cohort counts", async () => {
+  const { store, state, client } = await instrumentedStore();
+  const { dashboardQuerySchema } = await import("@clearpath/contracts");
+  const query = (values: Record<string, string> = {}) => dashboardQuerySchema.parse({ today: "2026-11-04", ...values });
+  const clean: Analysis = { ...analysis, checks: [] };
+  const incomplete: Analysis = { ...analysis, checks: [{ ...analysis.checks[0], ruleId: "review-context", status: "unknown" }] };
+  try {
+    const workspace = await store.createWorkspace(), other = await store.createWorkspace();
+    const specs = [
+      { title: "Delta 100%_ offer", publisher: "Partner Studio", launchDate: "2026-11-03", productId: "card" as const, analysis: clean },
+      { title: "Alpha offer", publisher: "Partner Studio", launchDate: "2026-11-04", productId: "card" as const, analysis: incomplete },
+      { title: "Bravo loan", publisher: "Other publisher", launchDate: "2026-11-02", productId: "personal_loan" as const, analysis: clean },
+      { title: "Charlie approved", publisher: "Partner Studio", launchDate: "2026-11-05", productId: "card" as const, analysis: clean },
+      { title: "Echo invalid legacy date", publisher: "Partner Studio", launchDate: "2026-02-30", productId: "card" as const, analysis: clean },
+    ];
+    const ids: string[] = [];
+    for (const spec of specs) {
+      const saved = await store.createCase(workspace, { ...input, ...spec }, spec.analysis);
+      if (!saved.ok) throw new Error("fixture failed");
+      ids.push(saved.value.case.id);
+    }
+    await store.createCase(other, { ...input, title: "Hidden Partner Studio" }, clean);
+    assert.equal((await store.decide(workspace, ids[2], 1, "request_changes", "Revise loan")).ok, true);
+    assert.equal((await store.decide(workspace, ids[3], 1, "approve", "Reviewed")).ok, true);
+    for (let index = 0; index < ids.length; index++) {
+      await client.query("UPDATE cases SET created_at=$1, updated_at=$1 WHERE id=$2", ["2026-11-0" + (index + 1) + "T00:00:00Z", ids[index]]);
+    }
+    state.queries = 0;
+    const filtered = await store.dashboard(workspace, query({ product: "card", status: "approved" }));
+    assert.equal(state.queries, 1);
+    assert.equal(filtered.workspaceTotal, 5);
+    assert.deepEqual(filtered.rows.map((item) => item.id), [ids[3]]);
+    assert.deepEqual(filtered.cohort.map((item) => item.id), [ids[0], ids[1], ids[3], ids[4]]);
+    assert.deepEqual(filtered.overview.counts, { ready_for_review: 2, needs_information: 1, changes_requested: 0, approved: 1 });
+    assert.equal(filtered.overview.openCount, 3);
+    assert.equal(filtered.overview.nextLaunchDate, "2026-11-03");
+    assert.equal(filtered.overview.overdueCount, 1);
+    assert.deepEqual(filtered.overview.actionable.map((item) => item.id), [ids[0], ids[1], ids[4]]);
+    assert.deepEqual((await store.dashboard(workspace, query({ product: "card", direction: "desc" }))).rows.map((item) => item.id), [ids[3], ids[1], ids[0], ids[4]]);
+    assert.deepEqual((await store.dashboard(workspace, query({ product: "card", sort: "title" }))).rows.map((item) => item.id), [ids[1], ids[3], ids[0], ids[4]]);
+    assert.deepEqual((await store.dashboard(workspace, query({ product: "card", sort: "updatedAt", direction: "desc" }))).rows.map((item) => item.id), [ids[4], ids[3], ids[1], ids[0]]);
+    const submitter = await store.dashboard(workspace, query({ role: "submitter" }));
+    assert.deepEqual(submitter.overview.actionable.map((item) => item.id), [ids[2], ids[1]]);
+    for (const q of ["100%_", "%", "_", "DELTA", " delta 100%_ "]) {
+      assert.deepEqual((await store.dashboard(workspace, query({ q }))).rows.map((item) => item.id), [ids[0]]);
+    }
+    assert.equal((await store.dashboard(workspace, query({ q: "PARTNER STUDIO" }))).rows.length, 4);
+    assert.equal((await store.dashboard(workspace, query({ q: "' OR 1=1 --" }))).rows.length, 0);
+    assert.equal((await store.dashboard(other, query())).workspaceTotal, 1);
+    assert.equal((await store.dashboard(workspace, query({ status: "changes_requested", product: "card" }))).cohort.length, 4);
+    // Equal target dates retain creation/ID tie order in either direction.
+    await client.query("UPDATE revisions SET input=jsonb_set(input,'{launchDate}','\"2026-11-03\"') WHERE case_id=$1", [ids[1]]);
+    const tiedAsc = (await store.dashboard(workspace, query({ q: "Partner Studio" }))).rows;
+    const tiedDesc = (await store.dashboard(workspace, query({ q: "Partner Studio", direction: "desc" }))).rows;
+    assert.deepEqual(tiedAsc.filter((item) => item.launchDate === "2026-11-03").map((item) => item.id), [ids[0], ids[1]]);
+    assert.deepEqual(tiedDesc.filter((item) => item.launchDate === "2026-11-03").map((item) => item.id), [ids[0], ids[1]]);
+    await client.query("UPDATE cases SET created_at='2026-11-01T00:00:00Z' WHERE id=$1", [ids[1]]);
+    assert.deepEqual((await store.dashboard(workspace, query())).rows.filter((item) => item.launchDate === "2026-11-03").map((item) => item.id), [ids[0], ids[1]].sort());
+  } finally { await store.close(); }
+});

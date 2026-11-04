@@ -96,6 +96,30 @@ export interface CaseSummary {
   createdAt: string;
   updatedAt: string;
 }
+export const dashboardQuerySchema = z.object({
+  q: z.string().trim().max(200).default(""),
+  product: z.enum(["all", ...productIds]).default("all"),
+  status: z.enum(["all", "needs_information", "ready_for_review", "changes_requested", "approved"]).default("all"),
+  sort: z.enum(["launchDate", "title", "updatedAt"]).default("launchDate"),
+  direction: z.enum(["asc", "desc"]).default("asc"),
+  role: z.enum(["reviewer", "submitter"]).default("reviewer"),
+  today: submissionSchema.shape.launchDate.default(() => new Date().toISOString().slice(0, 10)),
+}).strict();
+export type DashboardQuery = z.infer<typeof dashboardQuerySchema>;
+export interface DashboardResponse {
+  rows: CaseSummary[];
+  /** Search/product cohort before the queue-only status filter. */
+  cohort: CaseSummary[];
+  workspaceTotal: number;
+  overview: {
+    total: number;
+    openCount: number;
+    counts: Record<CaseStatus, number>;
+    actionable: CaseSummary[];
+    nextLaunchDate: string | null;
+    overdueCount: number;
+  };
+}
 export interface CaseDetail {
   case: CaseSummary;
   revisions: Revision[];

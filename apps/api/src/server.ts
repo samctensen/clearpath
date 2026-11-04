@@ -7,6 +7,7 @@ import {
   type Offer,
   type Result,
   type SubmissionInput,
+  dashboardQuerySchema,
   submissionSchema,
   success,
 } from "@clearpath/contracts";
@@ -153,16 +154,24 @@ export async function createApiServer(deps: Dependencies) {
     }
   });
   app.addHook("preHandler", async (req, reply) => {
-    if (req.url.split("?")[0] === "/api/health") return;
+    const path = req.url.split("?")[0];
+    if (path === "/api/health") return;
+    if ((req.method === "GET" || req.method === "HEAD") && path === "/api/dashboard") {
+      const query = dashboardQuerySchema.safeParse(req.query);
+      if (!query.success) return reply.status(400).send(error("invalid", "Invalid dashboard filters"));
+      (req as any).dashboardQuery = query.data;
+    }
     const signed = req.cookies.clearpath_workspace;
     const parsed = signed ? req.unsignCookie(signed) : null;
     let workspace = parsed?.valid ? parsed.value : null;
     const exists = workspace ? await deps.store.hasWorkspace(workspace) : false;
-    const checkEmpty = exists && deps.seed !== false && req.method === "GET" &&
-      req.url.split("?")[0] === "/api/cases";
-    const summaries = checkEmpty ? await deps.store.listCases(workspace!) : undefined;
-    const recoverEmpty = summaries?.length === 0;
+    const checkEmpty = exists && deps.seed !== false && req.method === "GET";
+    const summaries = checkEmpty && path === "/api/cases" ? await deps.store.listCases(workspace!) : undefined;
+    const dashboard = checkEmpty && path === "/api/dashboard"
+      ? await deps.store.dashboard(workspace!, (req as any).dashboardQuery) : undefined;
+    const recoverEmpty = summaries?.length === 0 || dashboard?.workspaceTotal === 0;
     if (summaries && !recoverEmpty) (req as any).summaries = summaries;
+    if (dashboard && !recoverEmpty) (req as any).dashboard = dashboard;
     if (!exists || recoverEmpty) {
       workspace = deps.seed === false
         ? await deps.store.createWorkspace()
@@ -219,6 +228,10 @@ export async function createApiServer(deps: Dependencies) {
     "/api/cases",
     async (req) => (req as any).summaries ?? await deps.store.listCases(ws(req)),
   );
+  app.get("/api/dashboard", async (req, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    return (req as any).dashboard ?? await deps.store.dashboard(ws(req), (req as any).dashboardQuery);
+  });
   app.post("/api/cases", async (req, reply) => {
     const input = parse(submissionSchema, req.body, reply);
     if (input) {
