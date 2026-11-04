@@ -106,7 +106,7 @@ textarea { resize: vertical; line-height: 1.65; }
 .copy-text, .comparison-copy, .approved-example blockquote, .supporting-copy p, .evidence-quote { white-space: pre-wrap; overflow-wrap: anywhere; }
 .copy-text { font-size: 16px; line-height: 1.9; }
 .copy-text mark { scroll-margin: 24px; color: #ffe6a6; background: #5a431b66; border-bottom: 1px solid #b7873d; border-radius: 2px; box-decoration-break: clone; }
-.copy-text mark.active-excerpt, .copy-text mark:focus { background: #6b4d22; box-shadow: 0 0 0 3px #6b4d22; color: #ffe8c4; }
+.copy-text mark.active-excerpt, .copy-text mark:focus { padding: 1px 3px; border-radius: 3px; background: #6b4d22; color: #ffe8c4; }
 .supporting-copy { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
 .supporting-copy p { color: var(--muted); margin-top: 6px; font-size: 13px; }
 .offer-terms { display: flex; flex-wrap: wrap; gap: 14px 28px; }

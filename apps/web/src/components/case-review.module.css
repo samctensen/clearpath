@@ -103,7 +103,7 @@
 .excerptHint > span { width: 10px; height: 10px; flex-shrink: 0; border-radius: 2px; background: #3e3020; border: 1px solid #6e5231; }
 .copyText { min-height: 120px; max-width: 72ch; padding: 26px 0 30px; color: #dfdfdf; font-size: 16px; font-weight: 450; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; }
 .copyText mark { padding: 1px 0; border-radius: 2px; background: #3b2c19; color: #e6c795; box-decoration-break: clone; -webkit-box-decoration-break: clone; scroll-margin: 40px; }
-.copyText mark.activeExcerpt, .copyText mark:focus { background: #6b4d22; box-shadow: 0 0 0 3px #6b4d22; color: #ffe8c4; }
+.copyText mark.activeExcerpt, .copyText mark:focus { padding: 1px 3px; border-radius: 3px; background: #6b4d22; color: #ffe8c4; }
 .supportingCopy { border-top: 1px solid var(--line, #262626); padding-block: 21px; }
 .supportingCopy h3 { font-size: 12px; color: #c7c7c7; font-weight: 650; }
 .supportingCopy p { margin-top: 8px; color: #999; font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -136,9 +136,10 @@
    around the card. The jump announces itself with a brief wash instead. */
 .checkTarget:focus { outline: none; }
 .checkFlash { border-radius: 6px; animation: checkFlash 1100ms ease-out; }
+/* Stays inside the card: a spread shadow would wash over its neighbours. */
 @keyframes checkFlash {
-  0%, 55% { background: #9865f52b; box-shadow: 0 0 0 10px #9865f52b; }
-  100% { background: transparent; box-shadow: 0 0 0 10px transparent; }
+  0%, 55% { background: #ffffff14; }
+  100% { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .checkFlash { animation-duration: 1ms; } }
 .evidenceRail :global(.check-list) { gap: 0; margin-top: 18px; }
