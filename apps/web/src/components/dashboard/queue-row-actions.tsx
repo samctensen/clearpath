@@ -3,10 +3,24 @@
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import type { CaseStatus, DemoRole } from "@clearpath/contracts";
+import type { QueueAction } from "./queue-action-dialog";
 import { DashboardIcon } from "./dashboard-icon";
 import styles from "./queue-row-actions.module.css";
 
-export function QueueRowActions({ caseId, title }: { caseId: string; title: string }) {
+export function QueueRowActions({ caseId, title, status, role, onAction }: {
+  caseId: string;
+  title: string;
+  status: CaseStatus;
+  role: DemoRole;
+  onAction: (action: QueueAction, trigger: HTMLButtonElement | null) => void;
+}) {
+  const canDecide = role === "reviewer" && (status === "ready_for_review" || status === "needs_information");
+  const canDelete = role === "submitter" && status !== "approved";
+  function begin(action: QueueAction) {
+    close(true);
+    onAction(action, trigger.current);
+  }
   const href = `/cases/${encodeURIComponent(caseId)}`;
   const menuId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -101,9 +115,15 @@ export function QueueRowActions({ caseId, title }: { caseId: string; title: stri
     </button>
     {open && createPortal(<div ref={panel} id={menuId} role="menu" aria-label={`Actions for ${title}`} className={styles.menu} style={position} onKeyDown={onMenuKey}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null) && !trigger.current?.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
+      {canDecide && <>
+        <button role="menuitem" tabIndex={-1} type="button" onClick={() => begin("approve")}><DashboardIcon name="check" size={15} />Approve copy</button>
+        <button role="menuitem" tabIndex={-1} type="button" onClick={() => begin("request_changes")}><DashboardIcon name="message-plus" size={15} />Request changes</button>
+      </>}
+      {role === "submitter" && <Link role="menuitem" tabIndex={-1} href={`${href}?intent=revise`} onClick={() => close()}><DashboardIcon name="pen" size={15} />Revise submission</Link>}
+      {canDelete && <button role="menuitem" tabIndex={-1} type="button" className={styles.danger} onClick={() => begin("delete")}><DashboardIcon name="trash-can" size={15} />Delete submission</button>}
+      {(canDecide || role === "submitter") && <div className={styles.separator} role="separator" />}
       <Link role="menuitem" tabIndex={-1} href={href} onClick={() => close()}><DashboardIcon name="file-lines" size={15} />Open review</Link>
       <a role="menuitem" tabIndex={-1} href={href} target="_blank" rel="noopener noreferrer" onClick={() => close(true)}><DashboardIcon name="arrow-up-right" size={15} />Open in new tab</a>
-      <div className={styles.separator} role="separator" />
       <button role="menuitem" tabIndex={-1} type="button" onClick={copyLink}><DashboardIcon name="link" size={15} />Copy review link</button>
     </div>, document.body)}
     {notice && createPortal(<div className={styles.notice} role="status">{notice}</div>, document.body)}
