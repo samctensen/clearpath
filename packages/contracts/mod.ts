@@ -76,7 +76,7 @@ export interface Revision {
 }
 export interface Activity {
   id: string;
-  type: "submitted" | "revised" | "finding_reviewed" | "manual_finding" | "finding_resolved" | "changes_requested" | "approved";
+  type: "submitted" | "revised" | "finding_reviewed" | "manual_finding" | "finding_resolved" | "changes_requested" | "approved" | "deleted";
   actor: string;
   message: string;
   revision: number;
@@ -126,6 +126,10 @@ export interface CaseDetail {
   dispositions: Disposition[];
   manualFindings: ManualFinding[];
   events: Activity[];
+}
+export interface DeleteCaseResult {
+  deleted: true;
+  id: string;
 }
 export type Result<T> = { ok: true; value: T } | { ok: false; error: { code: "not_found" | "conflict" | "invalid" | "blocked" | "storage"; message: string } };
 export const success = <T>(value: T): Result<T> => ({ ok: true, value });
