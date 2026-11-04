@@ -22,4 +22,6 @@ Vercel has `clearpathfinancial.xyz` and `www.clearpathfinancial.xyz` attached, w
 
 The hosted smoke test passed through the Vercel proxy against Neon on API revision `03gmk0t4mxa8`. It covered a new submission, blocked approval, a change request, revision, approval, stale-revision conflict, persistence, and workspace isolation. Initial demo workspace creation took 13.5 seconds in this run. The release uses sequential seeding after a parallel seeding attempt returned HTTP 500.
 
+A subsequent Brave browser check at 390 × 844 verified the queue, new-submission form, and review page. A newly entered launch date persisted, an unseen 18-month card promotion produced the expected mismatch, and approval remained disabled. The input was exercised through native segmented keyboard entry; the automation helper's date `fill` operation did not commit a value.
+
 For a release check, confirm that `/api/health` returns `storage: postgres` directly and through the web proxy. Open a fresh workspace, submit and revise copy, approve the exact revision, and reload. A second browser workspace should see its own cases.

@@ -45,7 +45,7 @@ Files: apps/web/src/*; handoff frontend.md.
 - [x] Integrate with the API and add loading, error, and empty states and a visible demo role switch.
 - [x] Pass type checks and the production build. Verify the seeded revision and approval workflow in the desktop browser.
 - [x] Review and commit the implementation checkpoint.
-- [ ] Verify the mobile layout and new submission date picker in a browser.
+- [x] Verify mobile queue, submission, and review layouts at 390 × 844, plus native date entry and saving a new submission in Brave.
 
 ## Task 4: release verification
 
