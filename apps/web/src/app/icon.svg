@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="ClearPath">
+  <!-- The sidebar wordmark, sized for a 16px tab: a filled tile reads on a light or
+       dark tab strip where the sidebar's outlined near-black one would not, and the
+       3px start square is dropped because at tab size it is a pixel and a half. -->
+  <rect width="32" height="32" rx="7" fill="#6d28d9"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.5 24.7H15.5V10.7H23"/>
+    <path d="M20 7.3L24.4 10.7L20 14.1"/>
+  </g>
+</svg>

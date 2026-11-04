@@ -8,7 +8,9 @@ import { Workspace } from "@/components/workspace";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Review queue | ClearPath", template: "%s | ClearPath" },
+  // Every route names itself, so the default is only ever reached by a 404 — which is
+  // not the review queue, whatever the old default claimed.
+  title: { default: "ClearPath", template: "%s | ClearPath" },
   description: "A review workspace for financial marketing copy.",
 };
 
