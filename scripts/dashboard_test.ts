@@ -3,6 +3,7 @@ import {
   buildDashboard,
   dashboardCohort,
   dashboardRows,
+  dashboardRequest,
   defaultDashboardFilters,
   parseDashboardFilters,
 } from "../apps/web/src/lib/dashboard.ts";
@@ -32,6 +33,33 @@ function submission(id: string, overrides: Partial<CaseSummary> = {}): CaseSumma
 }
 
 const ids = (cases: CaseSummary[]) => cases.map((item) => item.id);
+
+Deno.test("dashboard requests encode literal searches and send sorting to the API", () => {
+  const request = dashboardRequest({ status: "approved", product: "card", search: "  50% + A&B_  ", sort: "desc" }, "submitter", "2026-11-04");
+  const url = new URL(request.path, "http://clearpath.test");
+  assertEquals(url.pathname, "/dashboard");
+  const query: Record<string, string> = {};
+  url.searchParams.forEach((value, key) => { query[key] = value; });
+  assertEquals(query, {
+    q: "50% + A&B_", product: "card", status: "approved", sort: "launchDate",
+    direction: "desc", role: "submitter", today: "2026-11-04",
+  });
+});
+
+Deno.test("queue-only filters keep map identity while role and search invalidate the right data", () => {
+  const base = dashboardRequest(defaultDashboardFilters, "reviewer", "2026-11-04");
+  const queue = dashboardRequest({ ...defaultDashboardFilters, status: "approved", sort: "desc" }, "reviewer", "2026-11-04");
+  assertEquals(base.path === queue.path, false);
+  assertEquals(base.cohortKey, queue.cohortKey);
+  assertEquals(base.overviewKey, queue.overviewKey);
+  const role = dashboardRequest(defaultDashboardFilters, "submitter", "2026-11-04");
+  assertEquals(base.cohortKey, role.cohortKey);
+  assertEquals(base.overviewKey === role.overviewKey, false);
+  const search = dashboardRequest({ ...defaultDashboardFilters, search: "Northstar" }, "reviewer", "2026-11-04");
+  assertEquals(base.cohortKey === search.cohortKey, false);
+  assertEquals(base.overviewKey === search.overviewKey, false);
+  assertEquals(parseDashboardFilters({ search: "a".repeat(250) }).search.length, 200);
+});
 
 Deno.test("dashboard counts every status and excludes approved cases from open work", () => {
   const dashboard = buildDashboard(

@@ -49,21 +49,31 @@ function branchPath(index: number, width = FIELD_WIDTH) {
 }
 
 // One uninterrupted route: branch → left edge → destination perimeter.
-function particlePath(index: number, width: number) {
-  const left = width - STATUS_WIDTH;
+function particlePath(index: number, width: number, statusWidth: number, statusHeight: number) {
+  const left = width - statusWidth;
   const y = ROW / 2 + index * ROW;
-  return `${branchPath(index, left)} H${left + 1} V${y - 9} Q${left + 1} ${y - 17} ${left + 9} ${y - 17} H${width - 9} Q${width - 1} ${y - 17} ${width - 1} ${y - 9} V${y + 9} Q${width - 1} ${y + 17} ${width - 9} ${y + 17} H${left + 9} Q${left + 1} ${y + 17} ${left + 1} ${y + 9} V${y}`;
+  const half = statusHeight / 2 - 1;
+  const corner = half - 8;
+  return `${branchPath(index, left)} H${left + 1} V${y - corner} Q${left + 1} ${y - half} ${left + 9} ${y - half} H${width - 9} Q${width - 1} ${y - half} ${width - 1} ${y - corner} V${y + corner} Q${width - 1} ${y + half} ${width - 9} ${y + half} H${left + 9} Q${left + 1} ${y + half} ${left + 1} ${y + corner} V${y}`;
 }
 
 export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: ReviewMapProps) {
   const openRef = useRef<HTMLAnchorElement>(null);
   const networkRef = useRef<HTMLDivElement>(null);
-  const [networkWidth, setNetworkWidth] = useState(0);
+  const [geometry, setGeometry] = useState({ width: 0, statusWidth: STATUS_WIDTH, statusHeight: 36, compact: false });
 
   useEffect(() => {
     const network = networkRef.current;
     if (!network) return;
-    const observer = new ResizeObserver(([entry]) => setNetworkWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) => {
+      const css = getComputedStyle(network);
+      setGeometry({
+        width: entry.contentRect.width,
+        statusWidth: Number.parseFloat(css.getPropertyValue("--status-width")) || STATUS_WIDTH,
+        statusHeight: Number.parseFloat(css.getPropertyValue("--status-height")) || 36,
+        compact: css.getPropertyValue("--compact-map").trim() === "1",
+      });
+    });
     observer.observe(network);
     return () => observer.disconnect();
   }, []);
@@ -82,6 +92,20 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
     ?? pool.find((item) => item.id === model.initialCaseId)
     ?? pool[0]
     ?? null;
+  // On small screens keep the actual paths; limit dots to the usable straight rail.
+  // Overflow stays explicit and leads to the complete queue, never overlapping labels.
+  const groups = model.groups.map((group) => {
+    if (!geometry.compact || geometry.width === 0) return group;
+    const space = (geometry.width - geometry.statusWidth) * .68 - 4;
+    const capacity = Math.max(1, Math.floor(space / 44));
+    const limit = group.count > capacity ? Math.max(1, Math.floor((space - 44) / 44)) : capacity;
+    const visible = group.visible.slice(0, limit);
+    if (active?.status === group.status && !visible.some((item) => item.id === active.id)) {
+      visible[visible.length - 1] = active;
+    }
+    return { ...group, visible, hiddenCount: group.count - visible.length };
+  });
+  const plotted = groups.reduce((count, group) => count + group.visible.length, 0);
   const focusStatus = active?.status ?? (selected === "all" ? null : selected);
   const emphasizedStatus = hoveredStatus ?? focusStatus;
   const selectedGroupIndex = model.groups.findIndex((group) => group.status === selected && group.count > 0);
@@ -105,7 +129,7 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
           <h2 id="review-map-title" className={styles.title}>Review map</h2>
           <p className={styles.subtitle}>
             Each dot is a submission, grouped by current status.
-            {model.plotted < model.total && ` Showing ${model.plotted} of ${model.total}; the rest are in the queue.`}
+            {plotted < model.total && ` Showing ${plotted} of ${model.total}; the rest are in the queue.`}
           </p>
         </div>
         <p className={styles.summary}>{summary}</p>
@@ -120,7 +144,7 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
 
         <div ref={networkRef} className={styles.network}>
           <svg className={styles.field} viewBox={`0 0 ${FIELD_WIDTH} ${FIELD_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
-            {model.groups.map((group, index) => (
+            {groups.map((group, index) => (
               <g
                 key={group.status}
                 onMouseEnter={() => setHoveredStatus(group.status)}
@@ -143,16 +167,16 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
               </g>
             ))}
           </svg>
-          {selectedGroupIndex >= 0 && networkWidth > STATUS_WIDTH && (
-            <svg className={`${styles.particleField} ${statusClass[model.groups[selectedGroupIndex].status]}`} viewBox={`0 0 ${networkWidth} ${FIELD_HEIGHT}`} aria-hidden="true">
+          {selectedGroupIndex >= 0 && geometry.width > geometry.statusWidth && (
+            <svg className={`${styles.particleField} ${statusClass[model.groups[selectedGroupIndex].status]}`} viewBox={`0 0 ${geometry.width} ${FIELD_HEIGHT}`} aria-hidden="true">
               {[0, 1].map((particle) => (
-                <path key={`${selected}-${particle}`} d={particlePath(selectedGroupIndex, networkWidth)} className={styles.particle} pathLength={100} style={{ animationDelay: `${particle * -7}s` }} />
+                <path key={`${selected}-${particle}`} d={particlePath(selectedGroupIndex, geometry.width, geometry.statusWidth, geometry.statusHeight)} className={styles.particle} pathLength={100} style={{ animationDelay: `${particle * -7}s` }} />
               ))}
             </svg>
           )}
 
           <div className={styles.rows}>
-            {model.groups.map((group) => {
+            {groups.map((group) => {
               const dimmed = selected !== "all" && selected !== group.status && emphasizedStatus !== group.status;
               return (
                 <div
@@ -199,11 +223,6 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
                     onBlur={() => setHoveredStatus(null)}
                     onClick={() => selectStatus(group.status)}
                   >
-                    {selected === group.status && group.count > 0 && (
-                      <svg className={styles.statusOrbit} aria-hidden="true">
-                        <rect x="1" y="1" width="100%" height="100%" rx="8" className={styles.particle} pathLength={100} vectorEffect="non-scaling-stroke" />
-                      </svg>
-                    )}
                     <span className={styles.statusLabel}>{group.label}</span>
                     <span className={styles.statusCount}>{group.count}</span>
                   </button>
@@ -231,7 +250,7 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
             </dl>
           </div>
           <Link ref={openRef} className={styles.open} href={`/cases/${encodeURIComponent(active.id)}`} aria-label={`Open review: ${active.title}`}>
-            Open review<DashboardIcon name="arrow-up-right" size={13} />
+            Open review<DashboardIcon name="arrow-right" size={13} />
           </Link>
         </> : (
           <p className={styles.inspectorEmpty}>

@@ -43,6 +43,7 @@
 }
 
 .brand { display: flex; align-items: center; gap: 10px; margin: 0 18px; color: var(--dash-text); }
+.navigationTrigger { display: none; }
 .mark { flex: none; }
 .markFrame { fill: var(--dash-bg); stroke: var(--dash-border); }
 .markPath { fill: none; stroke: var(--dash-text); stroke-width: 2; stroke-linejoin: round; }
@@ -144,31 +145,30 @@
 
 .main { width: min(100%, 1440px); margin: 0 auto; padding: 16px 28px 56px; }
 
-/* Tablet and phone: compact horizontal header */
+/* Tablet and phone: one brand bar, with navigation revealed on demand. */
 @media (max-width: 960px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
-    position: static;
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 20px;
+    position: relative;
+    z-index: 30;
     height: auto;
-    padding: 12px 20px 0;
+    padding: 7px 20px;
     border-right: 0;
     border-bottom: 1px solid var(--dash-border);
   }
-  .brand { margin: 0; padding-bottom: 12px; }
-  .nav { display: flex; gap: 2px; margin: 0 0 8px auto; padding: 0; overflow-x: auto; }
-  .navLink { min-height: 40px; padding: 9px 12px; white-space: nowrap; }
+  .brandRow { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .brand { margin: 0; }
+  .navigationTrigger { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--dash-muted); }
+  .navigationTrigger:hover, .navigationTrigger[aria-expanded="true"] { background: var(--dash-raised); border-color: var(--dash-border); color: var(--dash-text); }
+  .nav { display: none; position: absolute; top: calc(100% + 6px); right: 14px; left: 14px; gap: 4px; margin: 0; padding: 7px; border: 1px solid #333; border-radius: 12px; background: var(--dash-panel); box-shadow: 0 16px 36px #0009; }
+  .nav[data-open="true"] { display: grid; }
+  .navLink { min-height: 46px; padding: 10px 12px; font-size: 14px; }
   .demo { display: none; }
   .main { padding: 16px 20px 48px; }
 }
 
 @media (max-width: 600px) {
-  .sidebar { padding: 10px 14px 0; gap: 0 20px; }
-  .brand { padding-bottom: 10px; }
-  .nav { flex: 1 0 100%; margin: 0 0 8px; }
+  .sidebar { padding: 5px 14px; }
   .caption { display: none; }
   .main { padding: 16px 14px 40px; }
 }

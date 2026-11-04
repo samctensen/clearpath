@@ -77,6 +77,14 @@
 .rowArrow { margin-left: auto; opacity: 0; color: var(--dash-accent); transition: opacity .15s; }
 .campaign:hover strong { color: var(--dash-accent); }
 .campaign:hover .rowArrow, .campaign:focus-visible .rowArrow { opacity: 1; }
+/* Stretch the real case link across the row; browser link and keyboard behavior stay native. */
+.queueRow { position: relative; }
+.queueRow .campaign::after { content: ""; position: absolute; inset: 0; z-index: 1; cursor: pointer; }
+.queueRow:has(.campaign:focus-visible) { outline: 2px solid var(--dash-accent); outline-offset: -2px; }
+.queueRow .campaign:focus-visible { outline: none; }
+.queueRow:hover .campaign strong { color: var(--dash-accent); }
+.table .rowActions { width: 52px; padding-left: 0; }
+.rowActions > * { position: relative; z-index: 2; }
 .productName { display: block; max-width: 160px; font-size: 13px; }
 .date { font-family: var(--dash-mono); font-size: 12px; white-space: nowrap; }
 .checks { font-size: 13px; white-space: nowrap; }
@@ -139,6 +147,9 @@
   .table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 14px; border-top: 1px solid var(--dash-border); }
   .table td, .table td:first-child, .table td:last-child { min-width: 0; max-width: none; padding: 0; border: 0; }
   .table td:first-child { grid-column: 1 / -1; }
+  .table .queueRow td:first-child { padding-right: 44px; }
+  .table .queueRow .rowActions { position: absolute; top: 10px; right: 10px; width: 36px; z-index: 2; }
+  .table .rowActions::before { display: none; }
   .table td::before { content: attr(data-label); display: block; margin-bottom: 3px; color: var(--dash-muted); font-size: 11px; font-weight: 600; letter-spacing: 0; }
   .table td:first-child::before { display: none; }
   .rowArrow { display: none !important; }

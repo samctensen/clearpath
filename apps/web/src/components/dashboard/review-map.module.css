@@ -1,6 +1,8 @@
 .panel {
   container-type: inline-size;
   --status-width: 196px;
+  --status-height: 36px;
+  --compact-map: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -83,8 +85,6 @@
 .branchHit { fill: none; stroke: transparent; stroke-width: 24; pointer-events: stroke; cursor: pointer; }
 .particleField { position: absolute; inset: 0; z-index: 2; width: 100%; height: 176px; overflow: visible; pointer-events: none; }
 .particle { fill: none; stroke: color-mix(in srgb, var(--status) 85%, white); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: .65 200; filter: drop-shadow(0 0 2px color-mix(in srgb, var(--status) 65%, transparent)); animation: travelBranch 14s linear infinite; }
-.statusOrbit { display: none; position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); overflow: visible; pointer-events: none; }
-.statusOrbit .particle { width: calc(100% - 2px); height: calc(100% - 2px); }
 @keyframes travelBranch {
   0% { stroke-dashoffset: .65; opacity: 0; }
   5%, 92% { opacity: .5; }
@@ -186,7 +186,7 @@
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  height: 36px;
+  height: var(--status-height);
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -241,31 +241,42 @@
 .open:hover { border-color: var(--dash-accent); }
 .inspectorEmpty { margin: 0; color: var(--dash-muted); font-size: 13px; }
 
-/* Narrow: four stacked status rows; 8 tokens + "+N" no longer fit beside the curves. */
+/* Narrow keeps the same branching map, with readable destinations and fewer dots. */
 @container (max-width: 700px) {
   .header { padding: 14px; }
   .summary { white-space: normal; }
-  .diagram { padding: 4px 0; }
-  .origin, .field, .particleField { display: none; }
-  .statusOrbit { display: block; }
-  .rows { grid-template-rows: none; }
-  .row { grid-template-columns: minmax(0, 1fr); padding: 6px 14px 8px; border-bottom: 1px solid var(--dash-border); }
-  .row:last-child { border-bottom: 0; }
-  .rowDim .track { opacity: .75; }
-  .status { order: -1; height: 40px; margin: 0 -12px; line-height: 38px; }
-  .track { justify-content: flex-start; flex-wrap: wrap; gap: 2px; min-height: 36px; padding: 0; }
-  .token { width: 36px; height: 36px; }
-  .more { min-height: 32px; margin-left: 2px; }
-  .none { padding: 0; }
+  .diagram { --status-width: 142px; --status-height: 44px; --compact-map: 1; padding: 12px; }
+  .origin { flex-basis: 44px; padding-right: 8px; }
+  .originCount { width: 36px; height: 36px; border-radius: 11px; font-size: 19px; }
+  .originLabel { top: calc(50% + 25px); right: 8px; width: 36px; font-size: 10px; }
+  .originNode { width: 7px; height: 7px; right: -3px; }
+  .track { gap: 0; padding-right: 4px; }
+  .token { width: 44px; height: 44px; }
+  .token::before { width: 9px; height: 9px; }
+  .more { display: grid; place-items: center; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: transparent; text-align: center; font-size: 11px; }
+  .more::before { content: ""; position: absolute; inset: 9px 4px; z-index: -1; border: 1px solid var(--dash-border); border-radius: 99px; background: var(--dash-panel); }
+  .more:hover::before { border-color: var(--dash-muted); }
+  .none { display: none; }
+  .status { gap: 6px; padding: 0 8px; line-height: 1.2; }
+  .statusLabel { overflow: visible; white-space: normal; font-size: 12px; }
+  .statusCount { min-width: 22px; height: 22px; padding: 0 4px; font-size: 12px; border-radius: 6px; }
   .inspector { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .record { display: block; }
   .recordTitle strong { white-space: normal; }
   .meta { margin: 8px 0 0; gap: 8px 18px; }
   .open { justify-content: center; min-height: 44px; }
 }
+@container (max-width: 380px) {
+  .diagram { --status-width: 114px; padding-inline: 8px; }
+  .origin { flex-basis: 24px; padding-right: 0; }
+  .originCount { width: 24px; height: 30px; border-radius: 9px; font-size: 15px; }
+  .originLabel { right: 0; width: 24px; }
+  .status { padding-inline: 6px; }
+  .statusLabel { font-size: 11.5px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .particleField, .statusOrbit { display: none; }
+  .particleField { display: none; }
   .particle { animation: none; }
   .branchTrace { animation: none; opacity: 0; }
   .branchGroup, .branch, .branchHalo, .row, .token::before, .status, .open, .more { transition: none; }

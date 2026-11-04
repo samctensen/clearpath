@@ -41,5 +41,6 @@ export function QueueRowsLoading() {
     <td data-label="Copy checks"><span className={`${styles.block} ${styles.short}`} /></td>
     <td data-label="Target date"><span className={`${styles.block} ${styles.short}`} /></td>
     <td data-label="Status"><span className={`${styles.block} ${styles.pill}`} /></td>
+    <td />
   </tr>)}</tbody>;
 }

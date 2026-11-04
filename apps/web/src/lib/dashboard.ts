@@ -36,8 +36,28 @@ export function parseDashboardFilters(value: unknown): DashboardFilters {
     product: saved.product === "all" || dashboardProducts.includes(saved.product as ProductId)
       ? saved.product as DashboardFilters["product"]
       : defaultDashboardFilters.product,
-    search: typeof saved.search === "string" ? saved.search : defaultDashboardFilters.search,
+    search: typeof saved.search === "string" ? saved.search.slice(0, 200) : defaultDashboardFilters.search,
     sort: saved.sort === "asc" || saved.sort === "desc" ? saved.sort : defaultDashboardFilters.sort,
+  };
+}
+
+/** Queue ordering lives on the API; separate keys keep unchanged map data mounted. */
+export function dashboardRequest(filters: DashboardFilters, role: DemoRole, today: string) {
+  const q = filters.search.trim();
+  const params = new URLSearchParams({
+    q,
+    product: filters.product,
+    status: filters.status,
+    sort: "launchDate",
+    direction: filters.sort,
+    role,
+    today,
+  });
+  const cohortKey = JSON.stringify([q, filters.product]);
+  return {
+    path: `/dashboard?${params}`,
+    cohortKey,
+    overviewKey: JSON.stringify([cohortKey, role, today]),
   };
 }
 
