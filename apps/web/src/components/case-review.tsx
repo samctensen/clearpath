@@ -5,14 +5,18 @@ import Link from "next/link";
 import { formatLabels, productLabels, type CaseDetail, type CheckResult, type Revision } from "@clearpath/contracts";
 import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { checkChangeLabels, compareRevisionChecks } from "@/lib/revision-comparison";
 import { AiReviewPanel } from "./ai-review-panel";
 import { OfferTerms } from "./catalog";
 import { CheckEvidence } from "./check-evidence";
+import { CaseQueueActions } from "./case-queue-actions";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
+import { QueueActionDialog } from "./dashboard/queue-action-dialog";
 import { FindingActions, ManualConcerns, ReviewDecision } from "./review-actions";
 import { ReviewCoverage } from "./review-coverage";
+import { RevisionComparison } from "./revision-comparison";
 import { SubmissionForm } from "./submission-form";
-import { AutomatedMissingInformation, SubmissionFeedback } from "./submissions/submission-feedback";
+import { AutomatedMissingInformation, ChangeRequestContent, SubmissionFeedback } from "./submissions/submission-feedback";
 import { CaseStatusBadge, ErrorMessage, formatDate, formatTime } from "./ui";
 import { CustomSelect } from "./ui/custom-select";
 import { PageHeader } from "./ui/page-header";
@@ -54,6 +58,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
   const role = useDemoRole();
   const [selected, setSelected] = useState<number | null>(initialRevision);
   const [comparing, setComparing] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<{ message: string; conflict: boolean } | null>(null);
@@ -83,6 +88,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
   const unresolved = concerns.filter((check) => dispositions.get(check.ruleId)?.action !== "dismissed").length;
   const canRequest = openManual > 0 || concerns.some((check) => dispositions.get(check.ruleId)?.action === "confirmed");
   const marked = excerptRanges(revision);
+  const checkChanges = new Map(previous ? compareRevisionChecks(previous, revision).map(change => [(change.current ?? change.previous)!.ruleId, checkChangeLabels[change.kind]]) : []);
 
   useEffect(() => {
     if (role !== "submitter") {
@@ -151,6 +157,8 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
 
   return (
     <>
+      {approving && <QueueActionDialog caseId={detail.case.id} title={current.input.title} action="approve" role="reviewer" currentRole={role}
+        onClose={() => setApproving(false)} onSuccess={() => { setApproving(false); onReload(); }} />}
       <PageHeader
         title={revision.input.title}
         description={revision.input.publisher}
@@ -167,7 +175,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
 
       {editing && role === "submitter" && isCurrent && detail.case.status === "needs_information" && <AutomatedMissingInformation revision={current} />}
 
-      {role === "submitter" && <SubmissionFeedback detail={detail} revisionNumber={revision.number} />}
+      {role === "submitter" && <SubmissionFeedback detail={detail} revisionNumber={revision.number} editing={editing && isCurrent} />}
 
       {editing && role === "submitter" && isCurrent ? (
         <RevisionEditor
@@ -228,9 +236,10 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
           {role === "reviewer" && decision && (
             <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-changes"}`}>
               <DashboardIcon name={decision.type === "approved" ? "circle-check" : "file-lines"} size={19} />
-              <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong><p>{decision.message}</p>{isCurrent && decision.type === "changes_requested" && <p>Awaiting a new revision from the submitter.</p>}</div>
+              <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong>{decision.changeRequest ? <ChangeRequestContent feedback={decision.changeRequest} /> : <p>{decision.message}</p>}{isCurrent && decision.type === "changes_requested" && <p>Awaiting a new revision from the submitter.</p>}</div>
             </div>
           )}
+          {role === "reviewer" && isCurrent && isDecided && <CaseQueueActions key={detail.case.id} caseId={detail.case.id} />}
           {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}
           <div className="action-notice" ref={actionNotice}>
             {actionError && <ErrorMessage message={actionError.message} retry={actionError.conflict ? onReload : undefined} retryLabel="Reload submission" />}
@@ -276,7 +285,7 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
                     {concerns.map((check) => (
                       <div key={check.ruleId} id={`review-check-${encodeURIComponent(check.ruleId)}`} data-check={check.ruleId} className={styles.checkTarget} role="group" aria-label={`${check.title} evidence`} tabIndex={-1}>
                       <CheckEvidence check={check} onShowExcerpt={marked.some((part) => part.rules.includes(check.ruleId)) ? () => jumpToExcerpt(check.ruleId) : undefined}
-                        change={previous ? previous.analysis.checks.some((item) => item.ruleId === check.ruleId && isConcern(item)) ? "Also flagged on the previous revision" : "Newly flagged on this revision" : undefined}>
+                        change={checkChanges.get(check.ruleId)}>
                         <FindingActions ruleId={check.ruleId} confirmationReason={`${check.title}. ${check.suggestion ?? check.explanation}`.slice(0, 4000)} disposition={dispositions.get(check.ruleId)} mutate={canReview ? mutate : undefined} pending={pending} />
                       </CheckEvidence>
                       </div>
@@ -290,14 +299,14 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
                     {revision.analysis.checks.filter((check) => !isConcern(check)).map((check) => (
                       <div key={check.ruleId} id={`review-check-${encodeURIComponent(check.ruleId)}`} data-check={check.ruleId} className={styles.checkTarget} role="group" aria-label={`${check.title} evidence`} tabIndex={-1}>
                       <CheckEvidence check={check}
-                        change={previous?.analysis.checks.some((item) => item.ruleId === check.ruleId && isConcern(item)) ? "Previously flagged, no longer detected" : undefined} />
+                        change={checkChanges.get(check.ruleId)} />
                       </div>
                     ))}
                   </div>
                 </details>
               </section>
               {isCurrent && role === "reviewer" && <div className={styles.manualSection}><ManualConcerns findings={detail.manualFindings} mutate={role === "reviewer" ? mutate : undefined} canAdd={canReview} pending={pending} /></div>}
-              {canReview && <div className={styles.decisionSection}><ReviewDecision key={current.id} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} pending={pending} /></div>}
+              {canReview && <div className={styles.decisionSection}><ReviewDecision key={current.id} detail={detail} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} onApprove={() => setApproving(true)} pending={pending} /></div>}
             </div>
           </div>
           <details className={styles.advisory}><summary>AI second opinion <span>· Advisory only</span></summary><AiReviewPanel
@@ -356,10 +365,11 @@ function RevisionEditor({ path, revision, wasApproved, onCancel, onSaved }: {
       {!formReady ? <CaseLoading label="Loading revision form" /> : (
         <SubmissionForm
           initial={revision.input}
+          casePath={path}
           catalog={catalog}
           revision={revision.number}
           onCancel={onCancel}
-          onSave={(input, role) => api<CaseDetail>(`${path}/revisions`, { body: { expectedRevision: revision.number, input }, role })}
+          onSave={(input, role, expectedRevision) => api<CaseDetail>(`${path}/revisions`, { body: { expectedRevision: expectedRevision ?? revision.number, input }, role })}
           onSaved={onSaved}
         />
       )}
@@ -376,25 +386,6 @@ function ActivityTimeline({ events }: { events: CaseDetail["events"] }) {
           <li key={event.id}><span className={styles.timelineDot} aria-hidden="true" /><div className={styles.activityEvent}><div className={styles.eventHeading}><strong>{activityLabels[event.type]}</strong><time dateTime={event.createdAt}>{formatTime(event.createdAt)}</time></div><p>{event.message}</p><div className={styles.eventMetadata}><span>Revision {event.revision}</span><span>{event.actor}</span></div></div></li>
         ))}
       </ol> : <p className="muted">No activity yet.</p>}
-    </section>
-  );
-}
-
-function RevisionComparison({ current, previous }: { current: Revision; previous: Revision }) {
-  const priorConcerns = previous.analysis.checks.filter(isConcern);
-  const selectedConcerns = current.analysis.checks.filter(isConcern);
-  const newlyFlagged = selectedConcerns.filter((check) => !priorConcerns.some((prior) => prior.ruleId === check.ruleId)).length;
-  const noLongerFlagged = priorConcerns.filter((check) => !selectedConcerns.some((selected) => selected.ruleId === check.ruleId)).length;
-  return (
-    <section className={styles.comparison} aria-labelledby="comparison-title">
-      <div className={styles.sectionHeading}><DashboardIcon name="columns-3" size={17} /><h2 id="comparison-title">Revision comparison</h2></div>
-      <p>{current.input.content === previous.input.content ? "The submitted text is identical across these revisions." : "Read the previous and selected copy side by side."}</p>
-      <p>{newlyFlagged} newly flagged, {selectedConcerns.length - newlyFlagged} still flagged, {noLongerFlagged} no longer flagged by the automated checks.</p>
-      <div className={styles.comparisonColumns}>
-        {[previous, current].map((version) => (
-          <div key={version.id}><h3>Revision {version.number}<span>{version === previous ? "Previous" : "Selected"}</span></h3><div className={styles.comparisonCopy}>{version.input.content}</div></div>
-        ))}
-      </div>
     </section>
   );
 }

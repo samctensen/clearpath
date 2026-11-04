@@ -2,7 +2,9 @@
 
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { useState, type FormEvent } from "react";
-import type { Disposition, ManualFinding } from "@clearpath/contracts";
+import { buildChangeRequestFeedback, type CaseDetail, type Disposition, type ManualFinding } from "@clearpath/contracts";
+import { ChangeRequestContent } from "./submissions/submission-feedback";
+import styles from "./review-actions.module.css";
 
 type Mutate = (path: string, body: object) => Promise<boolean>;
 
@@ -108,26 +110,29 @@ function ManualConcern({ finding, mutate, pending }: { finding: ManualFinding; m
   );
 }
 
-export function ReviewDecision({ revision, unresolved, openManual, canRequest, mutate, pending }: {
+export function ReviewDecision({ detail, revision, unresolved, openManual, canRequest, mutate, onApprove, pending }: {
+  detail: CaseDetail;
   revision: number;
   unresolved: number;
   openManual: number;
   canRequest: boolean;
   mutate: Mutate;
+  onApprove: () => void;
   pending: boolean;
 }) {
   const [requesting, setRequesting] = useState(false);
   const [note, setNote] = useState("");
   const blockers = unresolved + openManual;
+  const feedback = buildChangeRequestFeedback({ note, checks: detail.revisions.find(item => item.number === revision)!.analysis.checks, dispositions: detail.dispositions, manualFindings: detail.manualFindings });
   return (
     <section id="decision" className="panel decision-panel">
       <div className="panel-heading">
         <div><h2>Review decision</h2><p>Record a copy decision for revision {revision}.</p></div>
       </div>
-      <p className="muted panel-caption">{blockers ? `Dismiss remaining findings or unable-to-evaluate checks with a reason and resolve open manual concerns before approving (${blockers} remaining).` : "The decision applies to this copy. Visual review is separate."}</p>
+      <p className="muted panel-caption">{blockers ? `Approval is blocked by ${blockers} ${blockers === 1 ? "concern" : "concerns"}. For a valid concern, request changes. For missing context, request the specific information. Dismiss a finding only when it is incorrect, with a reason; resolve manual concerns only when addressed.` : "The decision applies to this copy. Visual review is separate."}</p>
       <div className="action-row">
         <button type="button" className="button secondary" disabled={pending} aria-expanded={requesting} onClick={() => setRequesting(!requesting)}><DashboardIcon name="message-plus" size={17} aria-hidden="true" />{requesting ? "Cancel request" : "Request changes"}</button>
-        <button type="button" className="button primary" disabled={pending || blockers > 0} onClick={() => void mutate("/decision", { decision: "approve", note: "" })}><DashboardIcon name="check" size={17} aria-hidden="true" />Approve copy</button>
+        <button type="button" className="button primary" disabled={pending || blockers > 0} onClick={onApprove}><DashboardIcon name="check" size={17} aria-hidden="true" />Approve copy</button>
       </div>
       {requesting && (
         <form className="inline-form" onSubmit={async (event: FormEvent<HTMLFormElement>) => {
@@ -139,6 +144,7 @@ export function ReviewDecision({ revision, unresolved, openManual, canRequest, m
         }}>
           <label className="field"><span>Feedback for the submitter {canRequest && <small>Optional</small>}</span><textarea rows={3} required={!canRequest} maxLength={4000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what needs to change." /></label>
           <p className="muted">{canRequest ? "Confirmed and open manual concerns are included in the request." : "Add feedback so the submitter knows what to change."}</p>
+          {(feedback.note || feedback.items.length > 0) && <section className={styles.preview} aria-label="Change request preview"><h3>Request preview · revision {revision}</h3><ChangeRequestContent feedback={feedback} /></section>}
           <button type="submit" className="button primary" disabled={pending || (!canRequest && !note.trim())}>Send change request</button>
         </form>
       )}

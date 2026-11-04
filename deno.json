@@ -14,7 +14,7 @@
   "tasks": {
     "dev:api": "deno run --env-file=.env --allow-net --allow-env --allow-read --allow-write=.data --allow-sys --watch apps/api/src/main.ts",
     "start:api": "deno run --allow-net --allow-env --allow-read --allow-sys apps/api/src/main.ts",
-    "test": "deno test --allow-env --allow-read --allow-write=.data --allow-net --allow-sys packages apps/api/test scripts/dashboard_test.ts scripts/review_map_test.ts scripts/reference_pages_test.ts scripts/submission_journey_test.ts",
+    "test": "deno test --allow-env --allow-read --allow-write=.data --allow-net --allow-sys packages apps/api/test scripts/dashboard_test.ts scripts/review_map_test.ts scripts/reference_pages_test.ts scripts/submission_journey_test.ts scripts/revision_comparison_test.ts scripts/submission_draft_test.ts scripts/queue_context_test.ts",
     "check": "deno check apps/api/src/main.ts packages/checks/mod.ts",
     "migrate": "deno run --env-file=.env --allow-net --allow-env --allow-read --allow-write=.data --allow-sys packages/models/migrate.ts"
   },
