@@ -1,0 +1,5 @@
+# Final independent code review
+
+Review the implemented ClearPath take-home against `docs/build-spec.md`. This is a Deno Fastify API, SQL model layer, deterministic six-rule analyzer, and Next.js review UI in one repo. Review working-tree source, not just the committed contract checkpoint. Read `docs/handoffs/*-report.md` for known boundaries. Root is testing the browser and hosting; another worker is correcting four analyzer false positives.
+
+Read-only. Focus on material correctness and workflow defects: exact-version approval, manual concerns across revisions, workspace isolation, unsafe browser rendering, request/response integration, stale previews, and whether the user can complete submit → changes → revision → approval. Do not demand enterprise authentication for the explicitly labeled isolated fictional demo. Do not inspect secret/env files, install packages, edit files, or commit. Use targeted source reads; no unrelated repos. Return only actionable findings with reproduction and location, or say no material findings. Distinguish demonstrated defects from theoretical risks.

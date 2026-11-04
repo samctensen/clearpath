@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+.data/
+.env
+.env.*
+!.env.example
+!.env.*.example
+.codegraph/
+.superpowers/
+.DS_Store
+*.tsbuildinfo
+.vercel/
+coverage/
+test-results/
+playwright-report/

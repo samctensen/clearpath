@@ -1,0 +1,12 @@
+.git
+.data
+.env*
+node_modules
+apps/web
+docs
+.codegraph
+.superpowers
+.vercel
+**/node_modules
+**/.next
+**/*test.ts
