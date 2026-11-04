@@ -4,7 +4,7 @@ Inspected November 3, 2026 (Pacific). Sam supplied three X accounts and requeste
 
 **Expanded after feedback:** [Browse the local visual archive](references/index.html): 53 downloaded images and video poster frames from 31 posts, with original post and media URLs in [sources.json](references/expanded/sources.json). [Detailed findings from nine additional images](reference-findings-expanded.md) distinguish direct visual observations from implementation recommendations. Poster frames establish composition, not the quality of motion or interaction.
 
-Sam rejected the initial gray-panel/donut treatment. The authoritative implementation direction is now [the compact purple review desk, combined header, and shorter launch horizon without metric tiles](homepage-direction-v3.md). The original observations below remain useful research, not an endorsement of the rejected composition.
+Sam rejected the initial gray-panel/donut treatment. The authoritative implementation direction is now [the compact purple review desk, combined header, and shorter launch horizon without metric tiles](homepage-direction-v4.md). The original observations below remain useful research, not an endorsement of the rejected composition.
 
 | Author / inspected work | What the work does well | Translation into ClearPath |
 | --- | --- | --- |

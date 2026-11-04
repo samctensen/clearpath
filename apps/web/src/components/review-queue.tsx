@@ -25,7 +25,7 @@ function targetLabel(value: string) {
 }
 
 function Status({ status }: { status: CaseStatus }) {
-  return <span className={styles.status} style={{ color: statusColor[status] }}><i aria-hidden="true" />{statusLabels[status]}</span>;
+  return <span className={styles.status}><i style={{ background: statusColor[status] }} aria-hidden="true" />{statusLabels[status]}</span>;
 }
 
 export function ReviewQueue() {
@@ -53,6 +53,7 @@ export function ReviewQueue() {
   const cohort = dashboardCohort(cases, filters);
   const overview = buildDashboard(cohort, role, today);
   const rows = dashboardRows(cases, filters);
+  const actionableCount = overview.counts[role === "reviewer" ? "ready_for_review" : "changes_requested"] + overview.counts.needs_information;
   const scoped = filters.product !== "all" || filters.search.trim() !== "";
   const loading = resource.loading || !restored;
   const toggleSort = () => update({ sort: filters.sort === "asc" ? "desc" : "asc" });
@@ -72,16 +73,17 @@ export function ReviewQueue() {
       <div className={styles.overviewGrid}>
         <ReviewPipeline cases={cohort} today={today} counts={overview.counts} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
         <section className={styles.nextPanel} aria-labelledby="next-title">
-          <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div><Icon name="arrow-up-right" size={17} /></div>
+          <div className={styles.panelHeading}><div><h2 id="next-title">Up next</h2><p>{role === "reviewer" ? "Review or clarify, by target date" : "Revise or clarify, by target date"}</p></div></div>
           <div className={styles.nextList}>
-            {overview.actionable.length ? overview.actionable.map((item, index) => <Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.nextItem} key={item.id}>
-              <span className={styles.nextNumber}>{String(index + 1).padStart(2, "0")}</span><div><strong>{item.title}</strong><span><i style={{ background: statusColor[item.status] }} aria-hidden="true" />{item.status === "needs_information" ? "Clarify details" : role === "reviewer" ? "Review copy" : "Revise copy"}<span className={styles.nextDate}>{targetLabel(item.launchDate)}</span></span></div><Icon name="chevron-right" size={12} />
+            {overview.actionable.length ? overview.actionable.map((item) => <Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.nextItem} key={item.id}>
+              <div><strong>{item.title}</strong><span><i style={{ background: statusColor[item.status] }} aria-hidden="true" />{item.status === "needs_information" ? "Clarify details" : role === "reviewer" ? "Review copy" : "Revise copy"}<span className={styles.nextDate}>{targetLabel(item.launchDate)}</span></span></div><Icon name="chevron-right" size={12} />
             </Link>) : <div className={styles.nextEmpty}><Icon name="circle-check" size={25} /><p>No {role === "reviewer" ? "reviews or information requests" : "revisions or information requests"} in this view.</p></div>}
           </div>
-          <div className={styles.targetNote}><Icon name="calendar-days" size={15} /><span>{overview.nextLaunchDate ? <>Earliest open target <strong>{targetLabel(overview.nextLaunchDate)}</strong></> : "No open target dates"}{overview.overdueCount > 0 && <small>{overview.overdueCount} open {overview.overdueCount === 1 ? "submission past its target" : "submissions past their targets"}</small>}</span></div>
+          {actionableCount > overview.actionable.length && <div className={styles.nextFooter}><span>Showing {overview.actionable.length} of {actionableCount}</span><Link href="#submissions" onClick={() => update({ status: "all" })}>View queue</Link></div>}
+          {overview.overdueCount > 0 && <p className={styles.overdueNote}>{overview.overdueCount} open {overview.overdueCount === 1 ? "submission past its target" : "submissions past their targets"}</p>}
         </section>
       </div>
-      <p className={styles.cohortNote}>{scoped ? "Overview reflects your search and product filters." : "Overview includes all submissions in this demo workspace."} Status selection filters the queue below.</p>
+      {scoped && <p className={styles.cohortNote}>Chart and queue reflect your search and product filters.</p>}
 
       <section id="submissions" className={styles.queue} aria-labelledby="queue-title">
         <div className={styles.queueHeading}><div className={styles.queueTitle}><Icon name="list-check" size={17} /><h2 id="queue-title">{role === "reviewer" ? "Review queue" : "Your submissions"}</h2><span>{rows.length}</span></div><div className={styles.queueControls}>
@@ -100,7 +102,7 @@ export function ReviewQueue() {
         </table></div> : <div className={styles.empty}><Icon name={cases.length ? "magnifying-glass" : "file-lines"} size={27} /><h3>{cases.length ? "No matching submissions" : "Your next campaign starts here"}</h3><p>{cases.length ? "Try another search, product, or review status." : "Add marketing copy to run checks and start a review."}</p>{cases.length ? <button type="button" className={styles.secondary} onClick={() => setFilters({ ...defaultDashboardFilters })}>Clear filters</button> : <Link href="/new" className={styles.secondary}>Start a submission<Icon name="arrow-right" size={13} /></Link>}</div>}
         <footer className={styles.queueFooter}><span>Showing {rows.length} of {cohort.length} {scoped ? "matching " : ""}submissions{scoped && ` · ${cases.length} in workspace`}</span>{(scoped || filters.status !== "all") && <button type="button" onClick={() => setFilters({ ...defaultDashboardFilters })}>Reset filters</button>}<span className={styles.checkNote}>Copy checks are automated findings, not all review concerns.</span></footer>
       </section>
-      <footer className={styles.disclaimer}><Icon name="shield-check" size={14} /><p>Human judgment, always. Copy approval applies to one revision and does not clear an asset for publication.</p><span>FICTIONAL DEMO</span></footer>
+      <footer className={styles.disclaimer}><Icon name="shield-check" size={14} /><p>Copy approval applies to one revision and does not clear an asset for publication.</p><span>Fictional demo</span></footer>
     </>}
   </div>;
 }

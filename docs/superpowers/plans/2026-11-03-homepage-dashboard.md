@@ -1,4 +1,4 @@
-> First-pass tasks completed; visual treatment revised in response to Sam. See [homepage-direction-v3.md](../../design/homepage-direction-v3.md) for current direction. Final validation is recorded in docs/design/homepage-validation.md.
+> First-pass tasks completed; visual treatment revised in response to Sam. See [homepage-direction-v4.md](../../design/homepage-direction-v4.md) for current direction. Final validation is recorded in docs/design/homepage-validation.md.
 
 # Homepage Dashboard Implementation Plan
 

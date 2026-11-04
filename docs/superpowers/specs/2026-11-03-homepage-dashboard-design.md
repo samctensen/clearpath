@@ -1,4 +1,4 @@
-> Historical first pass. Sam rejected its gray surfaces and donut. The authoritative revision is [homepage-direction-v3.md](../../design/homepage-direction-v3.md). Functionality and homepage isolation remain valid.
+> Historical first pass. Sam rejected its gray surfaces and donut. The authoritative revision is [homepage-direction-v4.md](../../design/homepage-direction-v4.md). Functionality and homepage isolation remain valid.
 
 # Homepage dashboard design
 

@@ -49,15 +49,20 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
 
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (!scroller || anchor === null || scroller.scrollWidth <= scroller.clientWidth) return;
-    scroller.scrollLeft = Math.max(0, anchor * scroller.scrollWidth - scroller.clientWidth / 2);
+    if (!scroller || anchor === null) return;
+    const revealTarget = () => {
+      if (scroller.scrollWidth > scroller.clientWidth) {
+        scroller.scrollLeft = Math.max(0, anchor * scroller.scrollWidth - scroller.clientWidth / 2);
+      }
+    };
+    revealTarget();
+    const observer = new ResizeObserver(revealTarget);
+    observer.observe(scroller);
+    return () => observer.disconnect();
   }, [anchor, plotMin]);
 
   const todaySide = delta !== null && delta > 0 ? "end" : "start";
   const focusSide = delta !== null && delta < 0 ? "end" : "start";
-  const dimLow = todayFrac !== null && focusFrac !== null ? Math.min(todayFrac, focusFrac) : 0;
-  const dimHigh = todayFrac !== null && focusFrac !== null ? Math.max(todayFrac, focusFrac) : 0;
-  const dimShort = (dimHigh - dimLow) * plotMin < 96;
 
   let signalValue = "—";
   let signalUnit = "";
@@ -87,10 +92,9 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
     <section className={styles.panel} aria-labelledby="review-pipeline-title">
       <header className={styles.header}>
         <div className={styles.titleBlock}>
-          <p className={styles.index}>Target dates × workflow</p>
           <h2 id="review-pipeline-title" className={styles.title}>Launch horizon</h2>
           <p className={styles.subtitle}>
-            Every submission, mapped to its target launch date.
+            Target launch dates by review status.
           </p>
         </div>
         <div className={styles.signal}>
@@ -113,12 +117,9 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
                 aria-pressed={selected === lane.status}
                 onClick={() => { setActiveId(null); onSelect(lane.status); }}
               >
-                <span className={styles.laneIndex}>
-                  <i className={styles.laneSwatch} aria-hidden="true" />
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className={styles.laneCount}>{counts[lane.status]}</span>
+                <i className={styles.laneSwatch} aria-hidden="true" />
                 <span className={styles.laneLabel}>{lane.label}</span>
+                <span className={styles.laneCount}>{counts[lane.status]}</span>
               </button>
             </li>
           ))}
@@ -143,9 +144,6 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
 
             {window && (
               <div className={styles.axis} style={{ top: TOP + inner }} aria-hidden="true">
-                {span <= 120 && Array.from({ length: span + 1 }, (_, offset) => (
-                  <i key={offset} className={styles.minor} style={{ left: `${(offset / span) * 100}%` }} />
-                ))}
                 {ticks.map((tick) => (
                   <span key={tick.day} className={styles.tick} style={{ left: `${frac(tick.day) * 100}%` }}>
                     <span className={styles.tickLabel}>{tick.label}</span>
@@ -192,23 +190,6 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
               </>
             )}
 
-            {delta !== null && delta !== 0 && (
-              <>
-                <i
-                  className={styles.dim}
-                  style={{ left: `${dimLow * 100}%`, width: `${(dimHigh - dimLow) * 100}%`, top: 34 }}
-                  aria-hidden="true"
-                />
-                <span
-                  className={`${styles.dimLabel} ${dimShort ? styles.dimOutside : ""}`}
-                  style={dimShort ? { left: `calc(${dimHigh * 100}% + 10px)`, top: 34 } : { left: `${((dimLow + dimHigh) / 2) * 100}%`, top: 34 }}
-                  aria-hidden="true"
-                >
-                  {Math.abs(delta)} {Math.abs(delta) === 1 ? "day" : "days"}{delta < 0 ? " past" : ""}
-                </span>
-              </>
-            )}
-
             {layouts.map((layout, laneIndex) => {
               const lane = lanes[laneIndex];
               return layout.placed.map((entry) => {
@@ -251,9 +232,9 @@ export function ReviewPipeline({ counts, cases, today, selected, onSelect }: Rev
       <footer className={styles.footer}>
         <span>
           {empty ? "No submissions match this view yet. " : ""}
-          Select a status to filter. Open a marker to review its copy.
+          Select a status to filter the queue.
         </span>
-        {window && <span className={styles.hint}>Scroll the plot sideways →</span>}
+        {window && <span className={styles.hint}>Scroll to see more dates</span>}
         <span className={styles.caption}>
           {dated.length} of {cases.length} plotted
           {undated > 0 ? ` · ${undated} undated, not on the plot` : ""}
