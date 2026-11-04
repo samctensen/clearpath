@@ -8,8 +8,9 @@ import styles from "./dashboard-shell.module.css";
 
 const navItems = [
   { href: "/", label: "Review desk", icon: "grid-2" },
-  { href: "/#submissions", label: "Review queue", icon: "list-check" },
+  { href: "/decisions", label: "Decision log", icon: "clock" },
   { href: "/catalog", label: "Offer library", icon: "book-open" },
+  { href: "/policies", label: "Policy guide", icon: "shield-check" },
 ];
 
 /** A path that turns once and lands on an arrow: submission → decision. */
