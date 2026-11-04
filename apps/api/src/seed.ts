@@ -236,13 +236,8 @@ const toInput = (sample: SeedSample, offer: Offer | undefined): SubmissionInput 
 
 const dispositionsFor = (review: SeedReview, analysis: Analysis) => {
   const concerns = analysis.checks.filter((c) => c.status === "finding" || c.status === "unknown");
-  if (review.decision === "approve") {
-    return concerns.map((check) => ({
-      ruleId: check.ruleId,
-      action: "dismissed" as const,
-      reason: "Reviewed for this fictional example.",
-    }));
-  }
+  // Ordinary approved examples never manufacture an override for a real concern.
+  if (review.decision === "approve") return [];
   const confirm = new Set(review.confirm ?? []);
   return concerns.filter((check) => confirm.has(check.ruleId)).map((check) => ({
     ruleId: check.ruleId,
@@ -340,7 +335,7 @@ function generated(index: number, catalog: Offer[]): SeedSample {
   return {
     title: `${offer.name} — ${campaign} ${String(index + 1).padStart(3, "0")}`,
     offerId: offer.id,
-    content: variant(offer),
+    content: review?.decision === "approve" ? offer.approvedCopy : variant(offer),
     format,
     publisher,
     // Spread across roughly a year, so the launch-date sort and the overdue
@@ -373,7 +368,11 @@ export function buildSeedPlans(
     const input = toInput(sample, offer);
     const analysis = analyze(input);
     const review = sample.review;
-    if (!review) return [{ input, analysis }];
+    // Catalog/check changes must leave a sample awaiting review, never fabricate
+    // an approval by dismissing an unexpected finding or missing context.
+    if (!review || (review.decision === "approve" && analysis.checks.some((check) =>
+      check.status === "finding" || check.status === "unknown"
+    ))) return [{ input, analysis }];
     return [{
       input,
       analysis,
