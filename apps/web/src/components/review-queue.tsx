@@ -83,7 +83,9 @@ function RoleQueue({ role }: { role: DemoRole }) {
     setRestored(true);
     const now = new Date();
     setToday(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`);
-    document.title = role === "reviewer" ? "Review desk" : "Submissions";
+    // The role lives in localStorage, so the server cannot name this page; only the
+    // client can. Carry the brand the rest of the tabs carry when it does.
+    document.title = `${role === "reviewer" ? "Review desk" : "Submissions"} | ClearPath`;
   }, [filtersKey, role]);
   useEffect(() => {
     if (restored) {
