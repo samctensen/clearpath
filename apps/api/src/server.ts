@@ -27,6 +27,8 @@ type Dependencies = {
   allowedOrigins?: string[];
   aiReviewer?: AiReviewProvider;
   aiReviewDailyLimit?: number;
+  /** Cases a fresh demo workspace is seeded with; defaults to the seed module's own count. */
+  seedCaseCount?: number;
 };
 const revision = z.number().int().positive();
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -59,7 +61,9 @@ class AiReviewQuotaError extends Error {}
 class AiReviewUnavailableError extends Error {}
 
 async function seedWorkspace(deps: Dependencies): Promise<string> {
-  const result = await deps.store.createSeededWorkspace(buildSeedPlans(deps.offers, deps.analyze));
+  const result = await deps.store.createSeededWorkspace(
+    buildSeedPlans(deps.offers, deps.analyze, deps.seedCaseCount),
+  );
   if (!result.ok) throw new Error("Unable to seed workspace");
   return result.value;
 }

@@ -28,6 +28,7 @@ Deno.test("API isolates visitors and validates revision, role and request body",
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     seed: false,
   });
   try {
@@ -78,6 +79,7 @@ Deno.test("API rejects disallowed origin and non-reviewable input", async () => 
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     seed: false,
   });
   try {
@@ -109,6 +111,7 @@ Deno.test("new workspace is seeded once and returning cookie retains cases", asy
     offers,
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const first = await app.inject({ method: "GET", url: "/api/cases" });
@@ -135,6 +138,7 @@ Deno.test("production does not trust local development origins", async () => {
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     production: true,
     seed: false,
   });
@@ -160,6 +164,7 @@ Deno.test("origin scheme must match the API origin", async () => {
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     production: true,
     seed: false,
   });
@@ -190,6 +195,7 @@ Deno.test("real analyzer seeds the expected demo review states", async () => {
     offers,
     policyVersion: POLICY_VERSION,
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const response = await app.inject({ method: "GET", url: "/api/cases" });
@@ -213,6 +219,7 @@ Deno.test("accepts schema-valid maximum length Unicode submissions", async () =>
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     seed: false,
   });
   try {
@@ -237,6 +244,7 @@ Deno.test("configured web origin is accepted by a separate API host and other or
     offers: [],
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
     production: true,
     seed: false,
     allowedOrigins: ["https://web.example"],
@@ -284,6 +292,7 @@ Deno.test("workspace seeding failure returns an error and does not issue a cooki
     offers,
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const response = await app.inject({ method: "GET", url: "/api/cases" });
@@ -304,6 +313,7 @@ Deno.test("recovers an existing empty workspace by issuing a newly seeded worksp
     offers,
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   };
   const before = await createApiServer({ ...deps, seed: false });
   const app = await createApiServer(deps);
@@ -334,6 +344,7 @@ Deno.test("returning queue request loads summaries once", async () => {
     offers,
     policyVersion: "test",
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/cases" });
@@ -369,6 +380,7 @@ Deno.test("demo initialization uses atomic workspace operation and retains revie
     offers,
     policyVersion: POLICY_VERSION,
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const one = await app.inject({ method: "GET", url: "/api/cases" }),

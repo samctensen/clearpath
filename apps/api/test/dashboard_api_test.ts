@@ -12,6 +12,7 @@ Deno.test("dashboard endpoint validates filters, preserves cohorts and never res
     offers,
     policyVersion: POLICY_VERSION,
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/dashboard?today=2026-11-16" });
@@ -113,6 +114,7 @@ Deno.test("dashboard recovers an actually empty demo workspace", async () => {
     offers,
     policyVersion: POLICY_VERSION,
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   };
   const emptyApp = await createApiServer({ ...deps, seed: false });
   const app = await createApiServer(deps);
@@ -143,6 +145,7 @@ Deno.test("dashboard endpoint pages with cursors and refuses a cursor it never i
     offers,
     policyVersion: POLICY_VERSION,
     cookieSecret: "a".repeat(32),
+    seedCaseCount: 18,
   });
   try {
     const first = await app.inject({ method: "GET", url: "/api/dashboard?limit=2&today=2026-11-16" });

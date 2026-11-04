@@ -10,3 +10,12 @@ export function parseAiReviewDailyLimit(value: string | undefined): number {
   }
   return limit;
 }
+
+export function parseSeedCaseCount(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const count = Number(value);
+  if (!/^[1-9]\d*$/.test(value) || !Number.isInteger(count) || count > 2000) {
+    throw new Error("SEED_CASE_COUNT must be a positive integer no greater than 2000");
+  }
+  return count;
+}

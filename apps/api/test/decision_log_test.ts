@@ -6,7 +6,7 @@ import { createApiServer } from "../src/server.ts";
 
 Deno.test("decision log preserves revision context and feedback, includes historical decisions, and isolates workspaces", async () => {
   const store = await createTestStore();
-  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seed: false });
+  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seedCaseCount: 18, seed: false });
   try {
     const empty = await app.inject({ method: "GET", url: "/api/decisions" });
     assert.deepEqual(empty.json(), []);
@@ -43,7 +43,7 @@ Deno.test("decision log preserves revision context and feedback, includes histor
 
 Deno.test("deleted submissions retain an archived decision record without restoring case access", async () => {
   const store = await createTestStore();
-  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seed: false });
+  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seedCaseCount: 18, seed: false });
   try {
     const initial = await app.inject({ method: "GET", url: "/api/decisions" });
     const cookie = initial.headers["set-cookie"] as string;
@@ -70,7 +70,7 @@ Deno.test("deleted submissions retain an archived decision record without restor
 
 Deno.test("policy guide covers each executable check with matching titles and sources", async () => {
   const store = await createTestStore();
-  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32) });
+  const app = await createApiServer({ store, analyze, offers, policyVersion: POLICY_VERSION, cookieSecret: "a".repeat(32), seedCaseCount: 18 });
   try {
     const response = await app.inject({ method: "GET", url: "/api/policies" });
     assert.equal(response.statusCode, 200);
