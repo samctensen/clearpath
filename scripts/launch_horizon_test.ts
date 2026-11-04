@@ -38,9 +38,9 @@ Deno.test("empty cohorts never invent plotted dates even when today is valid", (
   assertEquals(model.focusDay, null);
   assertEquals(model.focusCount, 0);
   assertEquals(model.layouts.map((layout) => layout.placed.length), [0, 0, 0, 0]);
-  assertEquals(model.laneHeights, [72, 72, 72, 72]);
-  assertEquals(model.laneTops, [0, 72, 144, 216]);
-  assertEquals(model.inner, 288);
+  assertEquals(model.laneHeights, [56, 56, 56, 56]);
+  assertEquals(model.laneTops, [0, 56, 112, 168]);
+  assertEquals(model.inner, 224);
 });
 
 Deno.test("invalid calendar dates are excluded instead of normalized", () => {

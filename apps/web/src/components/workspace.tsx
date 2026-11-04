@@ -9,9 +9,16 @@ import { DashboardShell } from "./dashboard/dashboard-shell";
 
 const roleKey = "clearpath-demo-role";
 const RoleContext = createContext<DemoRole>("reviewer");
+const RoleChangeContext = createContext<((role: DemoRole) => void) | null>(null);
 
 export function useDemoRole() {
   return useContext(RoleContext);
+}
+
+export function useChangeDemoRole() {
+  const changeRole = useContext(RoleChangeContext);
+  if (!changeRole) throw new Error("Demo role controls require Workspace");
+  return changeRole;
 }
 
 export function Workspace({ children }: { children: ReactNode }) {
@@ -33,7 +40,8 @@ export function Workspace({ children }: { children: ReactNode }) {
 
   return (
     <RoleContext.Provider value={role}>
-      {path === "/" ? <DashboardShell role={role} onRoleChange={changeRole}>{children}</DashboardShell> : (
+      <RoleChangeContext.Provider value={changeRole}>
+      {path === "/" ? <DashboardShell>{children}</DashboardShell> : (
       <div className="workspace">
         <a className="skip-link" href="#main">Skip to content</a>
         <aside className="sidebar">
@@ -71,6 +79,7 @@ export function Workspace({ children }: { children: ReactNode }) {
         </div>
       </div>
       )}
+      </RoleChangeContext.Provider>
     </RoleContext.Provider>
   );
 }

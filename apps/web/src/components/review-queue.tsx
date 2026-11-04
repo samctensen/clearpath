@@ -5,8 +5,9 @@ import Link from "next/link";
 import { formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type CaseSummary, type ProductId } from "@clearpath/contracts";
 import { useResource } from "@/lib/use-resource";
 import { buildDashboard, dashboardCohort, dashboardRows, dashboardStatuses, defaultDashboardFilters, parseDashboardFilters, type DashboardFilters, type DashboardStatus } from "@/lib/dashboard";
-import { useDemoRole } from "./workspace";
+import { useChangeDemoRole, useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
+import { DashboardUserMenu } from "./dashboard/dashboard-user-menu";
 import { ReviewPipeline } from "./dashboard/review-pipeline";
 import styles from "./dashboard/review-dashboard.module.css";
 
@@ -29,6 +30,7 @@ function Status({ status }: { status: CaseStatus }) {
 
 export function ReviewQueue() {
   const role = useDemoRole();
+  const changeRole = useChangeDemoRole();
   const resource = useResource<CaseSummary[]>("/cases");
   const [filters, setFilters] = useState<DashboardFilters>(defaultDashboardFilters);
   const [restored, setRestored] = useState(false);
@@ -56,27 +58,17 @@ export function ReviewQueue() {
   const toggleSort = () => update({ sort: filters.sort === "asc" ? "desc" : "asc" });
 
   return <div className={styles.dashboard}>
-    <div className={styles.heading}>
-      <div><p className={styles.eyebrow}>CLEARPATH / MARKETING OPERATIONS</p><h1>Review desk<span>.</span></h1><p className={styles.intro}>Every submission. Every decision. In view.</p></div>
-      <Link href="/new" className={styles.primary}><Icon name="plus" size={15} />New submission</Link>
-    </div>
-
-    <div className={styles.scopeBar}>
-      <div className={styles.scopeLabel}><span className={styles.liveDot} aria-hidden="true" />{scoped ? "Filtered workspace" : "Workspace overview"}<span className={styles.scopeHint}>Current submissions</span></div>
+    <header className={styles.toolbar}>
+      <h1>Review desk</h1>
       <div className={styles.scopeControls}>
         <label className={styles.search}><Icon name="magnifying-glass" size={15} /><span className="sr-only">Search campaigns or publishers</span><input type="search" placeholder="Search campaigns or publishers" value={filters.search} onChange={event => update({ search: event.target.value })} /></label>
         <label className={styles.product}><span className="sr-only">Filter by product</span><select value={filters.product} onChange={event => update({ product: event.target.value as ProductId | "all" })}><option value="all">All products</option>{productIds.map(id => <option key={id} value={id}>{productLabels[id]}</option>)}</select></label>
+        <Link href="/new" className={styles.primary}><Icon name="plus" size={14} />New submission</Link>
       </div>
-    </div>
+      <div className={styles.userControl}><DashboardUserMenu role={role} onRoleChange={changeRole} /></div>
+    </header>
 
     {loading ? <div className={styles.loadState} role="status"><Icon name="rotate-right" className={styles.spin} size={23} /><span>Loading your workspace…</span></div> : resource.error ? <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load the workspace</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div> : <>
-      <div className={styles.metrics} aria-label="Submission overview">
-        <div><span className={styles.metricLabel}><Icon name="file-lines" size={14} />Open submissions</span><strong>{String(overview.openCount).padStart(2, "0")}</strong><small>Awaiting copy approval</small></div>
-        <div><span className={styles.metricLabel}><i style={{ background: statusColor.ready_for_review }} />Ready for review</span><strong>{String(overview.counts.ready_for_review).padStart(2, "0")}</strong><small>Ready for a reviewer</small></div>
-        <div><span className={styles.metricLabel}><i style={{ background: statusColor.needs_information }} />Needs information</span><strong>{String(overview.counts.needs_information).padStart(2, "0")}</strong><small>Missing context to resolve</small></div>
-        <div><span className={styles.metricLabel}><i style={{ background: statusColor.approved }} />Copy approved</span><strong>{String(overview.counts.approved).padStart(2, "0")}</strong><small>Approval of this revision</small></div>
-      </div>
-
       <div className={styles.overviewGrid}>
         <ReviewPipeline cases={cohort} today={today} counts={overview.counts} selected={filters.status} onSelect={status => update({ status: filters.status === status ? "all" : status })} />
         <section className={styles.nextPanel} aria-labelledby="next-title">

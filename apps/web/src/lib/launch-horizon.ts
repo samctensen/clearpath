@@ -1,7 +1,7 @@
 import type { CaseStatus, CaseSummary } from "@clearpath/contracts";
 
-export const TOP = 46;
-export const BOTTOM = 44;
+export const TOP = 38;
+export const BOTTOM = 32;
 
 const DAY_MS = 86_400_000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -13,7 +13,7 @@ const STATUSES: readonly CaseStatus[] = [
   "approved",
 ];
 const PITCH = 28;
-const LANE_MIN = 72;
+const LANE_MIN = 56;
 const LANE_PAD = 16;
 const MARKER_WIDTH = 30;
 const MARKER_GAP = 6;
