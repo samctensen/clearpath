@@ -5,6 +5,9 @@
 .dialog h2 { font-size: 20px; }
 .dialog > p { color: var(--dash-muted); line-height: 1.7; }
 .dialog footer, .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+.discardArea { flex-basis: 100%; margin-top: 7px; padding-top: 12px; border-top: 1px solid var(--dash-border); }
+.dialog .discardButton { color: #ff9f9f; }
+.dialog .discardButton:hover:not(:disabled) { background: #ff77770a; color: #ffb3b3; }
 .notice { padding: 15px 17px; border: 1px solid var(--dash-border); border-radius: 12px; background: var(--dash-panel); margin-bottom: 16px; overflow-wrap: anywhere; }
 .notice p { margin-top: 5px; color: var(--dash-muted); font-size: 12px; line-height: 1.7; }
 .notice strong { font-size: 13px; }
@@ -18,4 +21,4 @@
 .copy { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.8; margin-top: 12px; }
 .confirm { display: flex; align-items: flex-start; gap: 9px; margin-top: 15px; font-size: 12px; line-height: 1.6; }
 .confirm input { flex: none; margin-top: 4px; accent-color: var(--dash-accent-fill); }
-@media (max-width: 600px) { .dialog { padding: 20px 17px; } .dialog footer { flex-direction: column; } .dialog footer > button, .actions > button { min-height: 44px; white-space: normal; } .compare { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .dialog { padding: 20px 17px; } .dialog footer { flex-direction: column; } .dialog footer button, .actions > button { min-height: 44px; white-space: normal; } .compare { grid-template-columns: 1fr; } }

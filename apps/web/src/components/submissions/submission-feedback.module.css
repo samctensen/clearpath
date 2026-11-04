@@ -18,3 +18,7 @@
 .requestItems { list-style: none; padding: 0; margin: 16px 0 0; }
 .requestItems li + li { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--dash-border); }
 .requestItems blockquote { margin: 10px 0; padding-left: 12px; border-left: 2px solid var(--dash-accent); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.requestExplanation { margin-top: 8px; color: var(--dash-muted); }
+.requestExplanation > summary { width: fit-content; padding-block: 6px; cursor: pointer; }
+@media (max-width: 600px) { .requestExplanation > summary { min-height: 44px; padding-block: 12px; } }

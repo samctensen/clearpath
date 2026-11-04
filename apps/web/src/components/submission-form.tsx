@@ -207,7 +207,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
           <section className={styles.section} aria-labelledby={`${fieldId}-context`}>
             <div className={styles.sectionHeading}>
               <div><h2 id={`${fieldId}-context`}>Campaign context</h2><p>Required fields are marked. Unknown context is allowed and may result in Needs information.</p></div>
-              {expectedRevision !== undefined && <span className={styles.revision}>Revision {expectedRevision + 1}</span>}
+              {expectedRevision !== undefined && <span className={styles.revision}>Draft · revision {expectedRevision + 1}</span>}
             </div>
             <div className={styles.fieldGrid}>
               <label className={`${styles.field} ${styles.wide}`}>Campaign title (required)

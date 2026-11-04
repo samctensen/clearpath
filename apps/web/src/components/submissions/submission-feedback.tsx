@@ -9,9 +9,12 @@ export function ChangeRequestContent({ feedback }: { feedback: ChangeRequestFeed
     {feedback.items.length > 0 && <ul className={styles.requestItems}>{feedback.items.map((item) => <li key={`${item.source}:${item.sourceId}`}>
       <strong>{item.title}</strong>
       {item.quote && <blockquote>{item.quote}</blockquote>}
-      {item.explanation && <p>{item.explanation}</p>}
       <p><strong>Next step:</strong> {item.nextStep}</p>
       {item.reviewerNote && <p><strong>Reviewer note:</strong> {item.reviewerNote}</p>}
+      {item.explanation && <details className={styles.requestExplanation}>
+        <summary>Why this was flagged</summary>
+        <p>{item.explanation}</p>
+      </details>}
     </li>)}</ul>}
   </div>;
 }
@@ -42,7 +45,7 @@ export function SubmissionFeedback({ detail, revisionNumber, editing = false }: 
       <h2 id="submission-feedback-title">{editing ? `Feedback on saved revision ${revisionNumber}` : "Reviewer feedback"}</h2>
       {editing && <p>These requests refer to the saved copy. Checks on your unsaved draft appear separately below.</p>}
       {decision ? <div className={styles.entry}>
-        <h3>{decision.type === "approved" ? `Copy approved for revision ${decision.revision}` : `Feedback on revision ${decision.revision}`}</h3>
+        {(!editing || decision.type === "approved" || decision.revision !== current.number) && <h3>{decision.type === "approved" ? `Copy approved for revision ${decision.revision}` : `Feedback on revision ${decision.revision}`}</h3>}
         <RecordedFeedback event={decision} />
         {decision.type === "approved" && <p>Approval applies to this copy revision. Visual and legal review are separate.</p>}
       </div> : <p>{emptyMessage}</p>}
