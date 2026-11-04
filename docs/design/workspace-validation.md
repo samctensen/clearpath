@@ -17,3 +17,6 @@ Validated November 4, 2026 (Pacific). Scope: dashboard loading and controls, sub
 Three file-scoped implementation workers and two independent code-review passes were used. Reviews fixed stale dropdown typeahead and failed-catalog example-prefill bugs. Claude Opus reviewed the design brief and rendered fictional UI screenshots, without private source access. Improvements included named coverage outcomes, compact selected-offer reference, smaller copy/editor space, readable evidence, and unmistakable disabled primary actions.
 
 No new dependencies, analytics, numerical confidence scores, or automatic approval behavior were added. Accuracy and a clear human review loop remain the product goal.
+
+## Production release
+Implementation commit `094e902`, Vercel deployment `dpl_CEF37TkfuDcjL1PP5fq8aTzmYjhK`, production READY on https://clearpathfinancial.xyz. Live custom filter, case workspace, saved compliance/marketing AI sections, library selection and example-prefill checks passed without changing demo records. No browser console errors were observed. PR #2 remains open.

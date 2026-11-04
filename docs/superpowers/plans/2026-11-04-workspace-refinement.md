@@ -24,7 +24,7 @@ Preserve functional guards and endpoint contracts. Accepted dashboard map stays.
 - [x] Root: dark shared tokens/global styles, Workspace and DashboardShell for all routes, reusable PageHeader; preserve shell layout and icon-only demo menu. Review/implement shared status badges.
 - [x] Claude: critique proposed and rendered designs against product functionality, accuracy and user's visual references. Record actionable conclusions and refine.
 - [x] Root: integrate, production build and existing tests, targeted browser workflow on desktop/phone, independent final review.
-- [ ] Root: commit/push PR and deploy verified frontend.
+- [x] Root: commit/push PR and deploy verified frontend.
 
 ## Shared component interfaces
 `CustomSelect` from `@/components/ui/custom-select`: props `{id?:string; label:string; value:string; options:readonly {value:string;label:string;disabled?:boolean;description?:string}[]; onChange:(value:string)=>void; disabled?:boolean; className?:string}`. `label` is its accessible name; parent supplies visible field text. No native select. Root moves dashboard tokens to :root so portal menus inherit them.
