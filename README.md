@@ -28,6 +28,14 @@ For configuration overrides, copy `.env.example` to `.env` at the repository roo
 
 Each decision applies to one exact revision. Every new revision reruns the checks and clears prior automated dispositions from the current review. Reviewers must dismiss automated concerns with a reason and resolve open manual concerns before approving copy. Manual concerns stay open across revisions until a reviewer resolves them.
 
+## Optional AI second opinion
+
+Open a submission and select **Generate AI review**. The saved revision receives two separate sections: **Compliance second opinion** for concerns and questions, and **Marketing feedback** for clarity, tone, and suggested wording. Generation sends that revision and its available offer/check context to OpenAI. It runs only on request; the result is saved to that exact revision and reused on later visits.
+
+Reviewers can deliberately **Add as manual concern**. AI never changes the copy, rule results, or approval decision. Suggested language still needs human verification: validated quotations and reference identifiers do not guarantee that an interpretation or rewrite is correct. Historical results stay readable; a new revision needs its own opinion.
+
+Set `OPENAI_API_KEY` in the API's environment to enable generation. Without a key, the normal workflow remains available. The default is `gpt-5.4-mini-2026-03-17` with medium reasoning; `OPENAI_MODEL` can override it. The demo allows 50 generation attempts globally per UTC day (`AI_REVIEW_DAILY_LIMIT`) and 10 per workspace. Failures count toward these limits; reading saved results does not. See the [AI evaluation and limitations](docs/reviews/2026-11-03-ai-review.md).
+
 ## What the checks cover
 
 The six deterministic checks evaluate submitted text against the selected fictional offer and versioned review rules.
@@ -57,9 +65,11 @@ npm run check   # Deno and frontend type checks
 npm run build   # Next.js production build
 ```
 
-The release passed 92 local tests, both type checks, and the hosted workflow smoke test. The unchanged frontend also passed its production build. After optimizing summary queries and demo initialization, three hosted samples showed median list latency of 1.06 seconds for a fresh visitor and 0.44 seconds for a returning visitor, down from 10.21 and 1.75 seconds respectively. See the [performance measurements and limits](docs/reviews/2026-11-03-list-performance.md).
+The AI release passed 116 local tests, both type checks, the production frontend build, and hosted workflow/AI smoke tests. Three hosted list samples after adding AI showed median latency of 0.98 seconds for a fresh visitor and 0.31 seconds for a returning visitor, with the same 2,045-byte response. The earlier query optimization reduced these from 10.21 and 1.75 seconds. These small samples are observations, not load-capacity or percentile guarantees. See the [performance measurements and limits](docs/reviews/2026-11-03-list-performance.md).
 
 Run `node scripts/benchmark-list.mjs https://clearpathfinancial.xyz 3` to repeat the list measurement. Each sample creates six fictional records in a new isolated workspace.
+
+Run `node scripts/smoke-ai.mjs https://clearpathfinancial.xyz` to verify generation, cached reuse, unchanged approval behavior, revision history, and isolation. This makes one paid generation request when AI is configured.
 
 ## Deploy
 

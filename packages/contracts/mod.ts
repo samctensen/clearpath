@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./ai-review.ts";
 
 export const productIds = ["card", "personal_loan", "mortgage", "unknown"] as const;
 export type ProductId = typeof productIds[number];

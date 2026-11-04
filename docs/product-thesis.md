@@ -153,7 +153,7 @@ Instrument actual submission, first-action, change-request, revision, and decisi
 
 ## Implementation decisions
 
-- The first release implements six transparent deterministic checks. A model remains optional follow-on work, not a dependency for the demonstration or a stated hiring requirement.
+- The first release implements six transparent deterministic checks. At Sam's request, a subsequent increment adds optional, on-demand AI compliance and marketing opinions, shown separately and saved by revision. Human decisions and the deterministic checks remain independent of the model. This is a product choice, not a stated hiring requirement; the [AI evaluation](reviews/2026-11-03-ai-review.md) records observed failures, refinements, and limits.
 - Intake accepts text and asset-format/completeness metadata. Coverage limits and the scope of a human copy decision are visible in the app.
 - Fictional product terms and policies are labeled separately from external regulatory references.
 - Sam selected two deployable apps in one repository: Next.js on Vercel, Deno/Fastify on Deno Deploy, and Neon Postgres. These are implementation choices, not evaluator mandates.

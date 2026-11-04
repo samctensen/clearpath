@@ -15,13 +15,17 @@ The Deno Deploy source bundle includes `deno.json`, `deno.lock`, `apps/api/src`,
 
 Set `NODE_ENV=production`, `HOST=0.0.0.0`, and `WEB_ORIGIN=https://clearpathfinancial.xyz,https://clearpath-review-psi.vercel.app`. Configure `DATABASE_URL` and `COOKIE_SECRET` through the host's secret store. Production startup requires the database, cookie secret, and web origin. Apply the numbered SQL migration before starting the API with `npm run migrate` from the repository root.
 
+Optional AI generation uses server-only `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-5.4-mini-2026-03-17`; `AI_REVIEW_DAILY_LIMIT` defaults to 50 attempts across all workspaces per UTC day, with a fixed 10-attempt workspace limit. The key was uploaded as a Deno Deploy secret and is never included in the frontend bundle. Migration `002_ai_reviews.sql` was applied to Neon before the AI deployment; it adds revision-scoped results and atomic daily usage counters. The provider has a 40-second timeout and no automatic retries. The Next.js proxy timeout is 60 seconds.
+
 ## Custom domain
 
 Vercel has `clearpathfinancial.xyz` and `www.clearpathfinancial.xyz` attached. Porkbun has an apex ALIAS and a `www` CNAME pointing to `3ff9121296dae5db.vercel-dns-017.com`, both with a 600-second TTL. Public DNS now resolves correctly. After DNS propagation completed, a Vercel TLS certificate covering both names was issued with automatic renewal enabled. Verified HTTPS returns 200 at the apex; HTTP and HTTPS `www` requests redirect to `https://clearpathfinancial.xyz/` using HTTP 308.
 
 ## Hosted verification
 
-The current API revision is `67j4axdcs13z`. Its full hosted smoke test passed through `https://clearpathfinancial.xyz` against Neon, covering a new submission, blocked approval, a change request, revision, approval, stale-revision conflict, persistence, and workspace isolation. Fresh workspace initialization took 1.1 seconds in that run. Three concurrent fresh visitors also passed with separate workspaces and chronological histories.
+The current API revision is `4ea8vbjc638z`, with AI prompt `clearpath-second-opinion-v5`. Frontend deployment `dpl_D4BL8sYSSo99BYi6cUcZ3bnHTRkr` is READY and aliased to the custom domain. The hosted AI smoke passed generation, cached reuse, unchanged approval, stale conflict, revision history, and isolation (6.08 seconds generation, 0.83 seconds cached). The ordinary hosted workflow also passed; fresh initialization was 1.5 seconds in that run. See the [AI release evaluation](reviews/2026-11-03-ai-review.md) for browser checks and limitations.
+
+The preceding performance release `67j4axdcs13z` passed the full workflow and three concurrent fresh visitors with separate workspaces and chronological histories. Its initialization was 1.1 seconds in the workflow smoke.
 
 The list now reads current-revision summaries directly and demo creation uses one atomic transaction of bulk inserts. Before this deployment, the additive `cases_workspace_updated_id_idx` index was applied to Neon. Three benchmark samples showed median fresh/returning list latency of 1.06/0.44 seconds. See the [before/after measurements](reviews/2026-11-03-list-performance.md), including sampling limits and the repeatable command.
 

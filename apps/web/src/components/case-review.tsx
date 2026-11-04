@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Check, Clock3, Columns2, FileText, Git
 import { formatLabels, productLabels, type CaseDetail, type CheckResult, type Revision } from "@clearpath/contracts";
 import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { AiReviewPanel } from "./ai-review-panel";
 import { OfferTerms } from "./catalog";
 import { AnalysisSummary, CheckEvidence } from "./check-evidence";
 import { FindingActions, ManualConcerns, ReviewDecision } from "./review-actions";
@@ -215,6 +216,17 @@ function ReviewDesk({ detail, path, onChange, onReload }: { detail: CaseDetail; 
               {canReview && <ReviewDecision key={current.id} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} pending={pending} />}
             </div>
           </div>
+          <AiReviewPanel
+            key={`${detail.case.id}:${revision.number}`}
+            path={path}
+            revision={revision}
+            isCurrent={isCurrent}
+            role={role}
+            pending={pending}
+            findings={detail.manualFindings}
+            onPromote={canReview ? (input) => mutate("/manual-findings", input) : undefined}
+            onReload={onReload}
+          />
           <ActivityTimeline events={detail.events} />
         </>
       )}

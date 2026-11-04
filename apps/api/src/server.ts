@@ -2,13 +2,16 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { z } from "zod";
 import {
+  type AiReview,
   type Analysis,
   type Offer,
   type Result,
   type SubmissionInput,
   submissionSchema,
+  success,
 } from "@clearpath/contracts";
 import type { SeedPlan, Store } from "@clearpath/models";
+import { type AiReviewProvider, AiReviewProviderError } from "./ai-review.ts";
 
 type Dependencies = {
   store: Store;
@@ -19,6 +22,8 @@ type Dependencies = {
   production?: boolean;
   seed?: boolean;
   allowedOrigins?: string[];
+  aiReviewer?: AiReviewProvider;
+  aiReviewDailyLimit?: number;
 };
 const revision = z.number().int().positive();
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -41,7 +46,13 @@ const decisionSchema = z.object({
   note: z.string().trim().max(4000),
 });
 const revisionSchema = z.object({ expectedRevision: revision, input: submissionSchema });
+const aiReviewSchema = z.object({ expectedRevision: revision }).strict();
+const aiReviewQuerySchema = z.object({
+  revision: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(revision),
+});
 const error = (code: string, message: string) => ({ error: { code, message } });
+class AiReviewQuotaError extends Error {}
+class AiReviewUnavailableError extends Error {}
 
 async function seedWorkspace(deps: Dependencies): Promise<string> {
   const samples = deps.offers.flatMap((offer, i) =>
@@ -95,6 +106,14 @@ async function seedWorkspace(deps: Dependencies): Promise<string> {
   return result.value;
 }
 export async function createApiServer(deps: Dependencies) {
+  const aiReviewDailyLimit = deps.aiReviewDailyLimit ?? 50;
+  if (
+    !Number.isInteger(aiReviewDailyLimit) || aiReviewDailyLimit <= 0 ||
+    aiReviewDailyLimit > 2147483647
+  ) {
+    throw new Error("AI_REVIEW_DAILY_LIMIT must be a positive 32-bit integer");
+  }
+  const inFlightAiReviews = new Map<string, Promise<Result<AiReview>>>();
   const app = Fastify({ logger: false, bodyLimit: 192 * 1024 });
   await app.register(cookie, { secret: deps.cookieSecret });
   app.setNotFoundHandler((_req, reply) => {
@@ -214,6 +233,87 @@ export async function createApiServer(deps: Dependencies) {
     "/api/cases/:id",
     async (req, reply) => send(reply, await deps.store.getCase(ws(req), caseId(req))),
   );
+  app.get("/api/cases/:id/ai-review", async (req, reply) => {
+    const query = parse(aiReviewQuerySchema, req.query, reply);
+    if (!query) return;
+    const result = await deps.store.getAiReview(ws(req), caseId(req), query.revision);
+    if (!result.ok) return send(reply, result);
+    return { available: !!deps.aiReviewer, review: result.value };
+  });
+  app.post("/api/cases/:id/ai-review", async (req, reply) => {
+    const body = parse(aiReviewSchema, req.body, reply);
+    if (!body) return;
+    const workspace = ws(req), id = caseId(req), expected = body.expectedRevision as number;
+    const current = await deps.store.getCase(workspace, id);
+    if (!current.ok) return send(reply, current);
+    if (current.value.case.revision !== expected) {
+      return reply.status(409).send(error("conflict", "Revision has changed"));
+    }
+    const key = JSON.stringify([workspace, id, expected]);
+    let pending = inFlightAiReviews.get(key);
+    if (!pending) {
+      const savedRevision = current.value.revisions.find((r) => r.number === expected)!;
+      const offer = deps.offers.find((offer) =>
+        offer.id === savedRevision.input.offerId &&
+        offer.productId === savedRevision.input.productId &&
+        offer.version === savedRevision.analysis.offerVersion
+      ) ?? null;
+      pending = (async () => {
+        // Cache lookup belongs to the coalesced operation too: a delayed miss must not start
+        // another paid call after the earlier operation has already persisted and cleared.
+        const cached = await deps.store.getAiReview(workspace, id, expected);
+        if (!cached.ok) return cached;
+        if (cached.value) return success(cached.value);
+        const reviewer = deps.aiReviewer;
+        if (!reviewer) throw new AiReviewUnavailableError();
+        const reserved = await deps.store.consumeAiReviewBudget(workspace, aiReviewDailyLimit, 10);
+        if (!reserved) throw new AiReviewQuotaError();
+        let generated;
+        try {
+          generated = await reviewer.generate({ revision: savedRevision, offer });
+        } catch (cause) {
+          // Only preserve the safe category; upstream messages may contain submitted text or secrets.
+          throw new AiReviewProviderError(
+            cause instanceof AiReviewProviderError && cause.statusCode === 504 ? 504 : 502,
+            "AI review could not be generated",
+          );
+        }
+        return await deps.store.saveAiReview(workspace, id, expected, generated);
+      })().finally(() => {
+        inFlightAiReviews.delete(key);
+      });
+      inFlightAiReviews.set(key, pending);
+    }
+    try {
+      const result = await pending;
+      if (!result.ok) return send(reply, result);
+      return { available: !!deps.aiReviewer, review: result.value };
+    } catch (cause) {
+      if (cause instanceof AiReviewUnavailableError) {
+        return reply.status(503).send(
+          error(
+            "unavailable",
+            "AI review is not configured. You can continue reviewing this case.",
+          ),
+        );
+      }
+      if (cause instanceof AiReviewQuotaError) {
+        return reply.status(429).send(
+          error("quota", "Today's AI review limit has been reached. Try again after midnight UTC."),
+        );
+      }
+      if (cause instanceof AiReviewProviderError) {
+        const timeout = cause.statusCode === 504;
+        return reply.status(timeout ? 504 : 502).send(error(
+          timeout ? "timeout" : "provider",
+          timeout
+            ? "AI review timed out. You can try again."
+            : "AI review could not be generated. You can try again.",
+        ));
+      }
+      throw cause;
+    }
+  });
   app.post("/api/cases/:id/revisions", async (req, reply) => {
     if (!submitter(req, reply)) return;
     const b = parse(revisionSchema, req.body, reply);

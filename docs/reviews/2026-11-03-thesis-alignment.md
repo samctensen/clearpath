@@ -88,4 +88,6 @@ Corrections to the review suggestions:
 
 No new application feature was implemented during this assessment. Keep production identity, assignments, notifications, rendered-file review, wider regulation coverage, and a semantic model as later candidates with a concrete user need. Repository invitations remain deferred at Sam's request.
 
+Subsequent user-directed work added the optional [AI second opinion](2026-11-03-ai-review.md), with compliance and marketing feedback separated. It can prepare semantic questions and wording suggestions for human review, but its benefit is unmeasured. Live evaluation exposed unsupported interpretations and prompted refinements; saved opinions do not clear deterministic findings or grant approval. This increment does not close the word-diff or queue-actionability gaps above.
+
 The original evaluation signals remain product intuition and accuracy. A reviewer who can find the next case and understand a revision quickly gives stronger evidence of product intuition; a decision that survives real edits and retains clear limits gives stronger evidence of accuracy. Neither depends on guessing undocumented hiring-team preferences.

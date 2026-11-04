@@ -1,6 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import {
+  type AiReview,
+  type AiReviewContent,
   type Analysis,
   type CaseDetail,
   type CaseStatus,
@@ -27,7 +29,8 @@ type DB = {
   transaction<T>(fn: (db: DB) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 };
-const migration = new URL("./migrations/001_initial.sql", import.meta.url);
+const migrations = ["001_initial.sql", "002_ai_reviews.sql"];
+class AiReviewBudgetExceeded extends Error {}
 const id = () => crypto.randomUUID();
 const iso = (date: unknown) => new Date(date as string).toISOString();
 const initialStatus = (a: Analysis): CaseStatus =>
@@ -73,9 +76,11 @@ export async function createStore(
     };
   }
   if (options.migrate !== false) {
-    const sql = await Deno.readTextFile(migration);
-    for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-      await db.query(statement);
+    for (const migration of migrations) {
+      const sql = await Deno.readTextFile(new URL(`./migrations/${migration}`, import.meta.url));
+      for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
+        await db.query(statement);
+      }
     }
   }
   return new Store(db, options.databaseUrl ? "postgres" : "pglite");
@@ -344,6 +349,109 @@ export class Store {
     return this.detail(this.db, workspace, caseId).catch(() =>
       failure<CaseDetail>("storage", "Unable to access storage")
     );
+  }
+  private aiReview(row: Row): AiReview {
+    return {
+      ...row.content,
+      revision: row.revision,
+      contentHash: row.content_hash,
+      model: row.model,
+      promptVersion: row.prompt_version,
+      createdAt: iso(row.created_at),
+    };
+  }
+  async getAiReview(
+    workspace: string,
+    caseId: string,
+    revision: number,
+  ): Promise<Result<AiReview | null>> {
+    try {
+      const [row] = await this.db.query(
+        `SELECT a.* FROM cases c
+         JOIN revisions r ON r.case_id=c.id AND r.number=$3
+         LEFT JOIN ai_reviews a ON a.case_id=r.case_id AND a.revision=r.number
+         WHERE c.id=$1 AND c.workspace_id=$2`,
+        [caseId, workspace, revision],
+      );
+      if (!row) return failure("not_found", "Case or revision not found");
+      return success(row.case_id ? this.aiReview(row) : null);
+    } catch {
+      return failure("storage", "Unable to access storage");
+    }
+  }
+  async saveAiReview(
+    workspace: string,
+    caseId: string,
+    expectedRevision: number,
+    generated: { content: AiReviewContent; model: string; promptVersion: string },
+  ): Promise<Result<AiReview>> {
+    return await this.db.transaction(async (db) => {
+      // Share the edit lock, but never hold it while the provider is running.
+      const [current] = await db.query(
+        "SELECT revision FROM cases WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
+        [caseId, workspace],
+      );
+      if (!current) return failure<AiReview>("not_found", "Case not found");
+      if (current.revision !== expectedRevision) {
+        return failure<AiReview>("conflict", "Revision has changed");
+      }
+      const [saved] = await db.query(
+        `INSERT INTO ai_reviews(case_id,revision,content_hash,content,model,prompt_version)
+         SELECT case_id,number,content_hash,$3::text::jsonb,$4,$5
+         FROM revisions WHERE case_id=$1 AND number=$2
+         ON CONFLICT (case_id,revision) DO NOTHING RETURNING *`,
+        [
+          caseId,
+          expectedRevision,
+          JSON.stringify(generated.content),
+          generated.model,
+          generated.promptVersion,
+        ],
+      );
+      // Another instance may already have saved a result. Preserve its metadata and content.
+      const row = saved ?? (await db.query(
+        "SELECT * FROM ai_reviews WHERE case_id=$1 AND revision=$2",
+        [caseId, expectedRevision],
+      ))[0];
+      if (!row) return failure<AiReview>("storage", "Unable to save AI review");
+      return success(this.aiReview(row));
+    }).catch(() => failure<AiReview>("storage", "Unable to access storage"));
+  }
+  async consumeAiReviewBudget(
+    workspace: string,
+    globalLimit: number,
+    workspaceLimit: number,
+  ): Promise<boolean> {
+    if (
+      [globalLimit, workspaceLimit].some((limit) =>
+        !Number.isInteger(limit) || limit <= 0 || limit > 2147483647
+      )
+    ) throw new Error("AI review limits must be positive 32-bit integers");
+    try {
+      return await this.db.transaction(async (db) => {
+        // now() is stable within this transaction; both counters use the same database UTC day.
+        for (
+          const [scope, limit] of [["global", globalLimit], [
+            `workspace:${workspace}`,
+            workspaceLimit,
+          ]]
+        ) {
+          const rows = await db.query(
+            `INSERT INTO ai_review_daily_usage(day,scope,requests)
+             VALUES ((now() AT TIME ZONE 'UTC')::date,$1,1)
+             ON CONFLICT (day,scope) DO UPDATE SET requests=ai_review_daily_usage.requests+1
+             WHERE ai_review_daily_usage.requests < $2 RETURNING requests`,
+            [scope, limit],
+          );
+          // Throw rather than return so a workspace cap also rolls back the global reservation.
+          if (!rows.length) throw new AiReviewBudgetExceeded();
+        }
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof AiReviewBudgetExceeded) return false;
+      throw error;
+    }
   }
   async listCases(workspace: string): Promise<CaseSummary[]> {
     const rows = await this.db.query(
