@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { formatLabels, productLabels, type CaseDetail, type DecisionRecord } from "@clearpath/contracts";
 import { useResource } from "@/lib/use-resource";
-import { decisionLogPage, decisionPageSize, decisionReviewEvents, hasDecisionFeedback } from "@/lib/reference-pages";
+import { decisionLogPage, decisionReviewEvents, hasDecisionFeedback } from "@/lib/reference-pages";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { CustomSelect } from "./ui/custom-select";
 import { HeaderSearch, PageHeader } from "./ui/page-header";
@@ -98,13 +98,14 @@ export function DecisionLog() {
           {hasDecisionFeedback(record.feedback) && <span className={styles.recordFeedback}>{record.feedback}</span>}
           <span className={styles.recordBottom}><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time>{record.caseDeleted ? <strong>Archived submission</strong> : record.revision < record.currentRevision && <strong>Earlier revision (current: {record.currentRevision})</strong>}</span>
         </a></li>)}</ul>
-        {records.length > decisionPageSize && <div className={styles.pager}>
-          <span role="status">Showing {pageStart + 1}&#8211;{pageEnd} of {records.length} decisions</span>
+        {/* A filter that leaves one page disables the steps rather than removing them. */}
+        <div className={styles.pager}>
+          <span role="status">Showing {pageStart + 1}&#8211;{pageEnd} of {records.length} {records.length === 1 ? "decision" : "decisions"}</span>
           <div className={styles.pagerSteps}>
             <button type="button" className={styles.pagerStep} aria-label="Previous page" disabled={!hasPrev} onClick={() => goToPage(currentPage - 1)}><DashboardIcon name="arrow-left" size={12} /></button>
             <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!hasNext} onClick={() => goToPage(currentPage + 1)}><DashboardIcon name="arrow-right" size={12} /></button>
           </div>
-        </div>}
+        </div>
       </section>
       <aside className={styles.decisionDetail} aria-labelledby="decision-detail-title">
         <div className={styles.detailHeading}><h2 id="decision-detail-title" ref={detailHeading} tabIndex={-1}>Decision record{selected && <span>Revision {selected.revision}</span>}</h2><button type="button" className={styles.backToList} onClick={() => { listHeading.current?.focus({ preventScroll: true }); listHeading.current?.scrollIntoView({ block: "start" }); }}><DashboardIcon name="arrow-left" size={12} />Back to list</button></div>
