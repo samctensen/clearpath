@@ -138,6 +138,16 @@ export const styles = {
     "flex flex-wrap items-center gap-x-[14px] gap-y-1.5 mt-2 text-[#999] text-xs " +
     "[&>strong]:text-[#e0c58e] [&>strong]:text-xs [&>strong]:font-semibold",
 
+  pager:
+    "flex items-center justify-between gap-3 mt-[15px] max-[600px]:gap-2.5 text-[#999] text-xs",
+
+  pagerSteps: "flex items-center gap-1.5 shrink-0",
+
+  pagerStep:
+    "inline-grid place-items-center w-7 h-7 max-[600px]:w-11 max-[600px]:h-11 p-0 rounded-lg border border-line bg-raised text-ink " +
+    "transition-[border-color,background-color] duration-150 " +
+    "hover:not-disabled:border-[#363636] hover:not-disabled:bg-[#242424] disabled:opacity-40",
+
   decisionDetail: "min-w-0 rounded-xl border border-line bg-panel overflow-hidden",
 
   detailHeading:

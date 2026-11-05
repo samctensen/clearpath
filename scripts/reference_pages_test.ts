@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import type { Activity } from "../packages/contracts/mod.ts";
 import { policyRules } from "../packages/checks/policies.ts";
-import { decisionReviewEvents, hasDecisionFeedback, matchesPolicy, parseRevisionParam } from "../apps/web/src/lib/reference-pages.ts";
+import { decisionLogPage, decisionPageSize, decisionReviewEvents, hasDecisionFeedback, matchesPolicy, parseRevisionParam } from "../apps/web/src/lib/reference-pages.ts";
 
 Deno.test("decision reasoning is bounded by the selected revision and decision event", () => {
   const event = (id: string, revision: number, type: Activity["type"], message = id): Activity => ({ id, revision, type, message, actor: "reviewer", createdAt: "2026-11-04T12:00:00Z" });
@@ -31,4 +31,17 @@ Deno.test("revision links accept only positive safe integers", () => {
   assert.equal(parseRevisionParam("1"), 1);
   assert.equal(parseRevisionParam("23"), 23);
   for (const value of [undefined, ["1", "2"], "", "0", "-1", "1.5", "1foo", "1e2", "9007199254740992"]) assert.equal(parseRevisionParam(value), null);
+});
+
+Deno.test("the decision list pages in eights and a linked record decides its page", () => {
+  assert.equal(decisionPageSize, 8);
+  assert.deepEqual(decisionLogPage(21, 0, -1), { page: 0, start: 0, end: 8, hasPrev: false, hasNext: true });
+  assert.deepEqual(decisionLogPage(21, 2, -1), { page: 2, start: 16, end: 21, hasPrev: true, hasNext: false });
+  // A filtered or empty list never leaves the reader on a page that no longer exists.
+  assert.deepEqual(decisionLogPage(5, 3, -1), { page: 0, start: 0, end: 5, hasPrev: false, hasNext: false });
+  assert.deepEqual(decisionLogPage(0, 1, -1), { page: 0, start: 0, end: 0, hasPrev: false, hasNext: false });
+  // A linked record outranks the stored page, so a deep link is never off-screen.
+  assert.equal(decisionLogPage(21, 0, 20).page, 2);
+  assert.equal(decisionLogPage(21, 2, 7).page, 0);
+  assert.equal(decisionLogPage(21, 0, 8).start, 8);
 });

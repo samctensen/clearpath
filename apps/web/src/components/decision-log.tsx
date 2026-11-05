@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { formatLabels, productLabels, type CaseDetail, type DecisionRecord } from "@clearpath/contracts";
 import { useResource } from "@/lib/use-resource";
-import { decisionReviewEvents, hasDecisionFeedback } from "@/lib/reference-pages";
+import { decisionLogPage, decisionPageSize, decisionReviewEvents, hasDecisionFeedback } from "@/lib/reference-pages";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { CustomSelect } from "./ui/custom-select";
 import { HeaderSearch, PageHeader } from "./ui/page-header";
@@ -21,13 +21,14 @@ export function DecisionLog() {
   const [product, setProduct] = useState("all");
   const [outcome, setOutcome] = useState<Outcome>("all");
   const [selectedId, setSelectedId] = useState("");
+  const [page, setPage] = useState(0);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     const readHash = () => {
       setSelectedId(window.location.hash.slice(1));
-      setQuery(""); setProduct("all"); setOutcome("all");
+      setQuery(""); setProduct("all"); setOutcome("all"); setPage(0);
     };
     readHash();
     window.addEventListener("hashchange", readHash);
@@ -58,7 +59,19 @@ export function DecisionLog() {
   const cohort = data?.filter((record) => (product === "all" || record.productId === product) &&
     `${record.title} ${record.publisher} ${record.feedback} ${record.policyVersion} ${record.offerVersion ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())) ?? [];
   const records = cohort.filter((record) => outcome === "all" || record.decision === outcome);
-  const selected = selectedId ? records.find((record) => record.id === selectedId) : records[0];
+  const selectedIndex = selectedId ? records.findIndex((record) => record.id === selectedId) : -1;
+  const { page: currentPage, start: pageStart, end: pageEnd, hasPrev, hasNext } = decisionLogPage(records.length, page, selectedIndex);
+  const visible = records.slice(pageStart, pageEnd);
+  const selected = selectedIndex >= 0 ? records[selectedIndex] : visible[0];
+
+  // The rendered page follows the selection and the filtered length; keep the stored page with it.
+  useEffect(() => { if (currentPage !== page) setPage(currentPage); }, [currentPage, page]);
+
+  function goToPage(next: number) {
+    clearSelection();
+    setPage(next);
+    listHeading.current?.scrollIntoView({ block: "nearest" });
+  }
 
   useEffect(() => {
     if (selectedId && selected?.id === selectedId && window.matchMedia("(max-width: 1100px)").matches) {
@@ -69,22 +82,29 @@ export function DecisionLog() {
 
   return <div className={styles.page}>
     <PageHeader title="Decision log" actions={<>
-      <HeaderSearch label="Search decisions" placeholder="Search campaigns, publishers, or feedback" value={query} onChange={(value) => { clearSelection(); setQuery(value); }} />
-      <CustomSelect label="Filter decisions by product" value={product} onChange={(value) => { clearSelection(); setProduct(value); }} options={[{ value: "all", label: "All products" }, ...Object.entries(productLabels).map(([value, label]) => ({ value, label }))]} />
+      <HeaderSearch label="Search decisions" placeholder="Search campaigns, publishers, or feedback" value={query} onChange={(value) => { clearSelection(); setPage(0); setQuery(value); }} />
+      <CustomSelect label="Filter decisions by product" value={product} onChange={(value) => { clearSelection(); setPage(0); setProduct(value); }} options={[{ value: "all", label: "All products" }, ...Object.entries(productLabels).map(([value, label]) => ({ value, label }))]} />
     </>} />
-    <div className={styles.outcomeTabs} role="group" aria-label="Filter by decision outcome">{tabs.map((tab) => <button key={tab.value} type="button" aria-pressed={outcome === tab.value} onClick={() => { clearSelection(); setOutcome(tab.value); }}>{tab.label}{data && <span>{cohort.filter((record) => tab.value === "all" || record.decision === tab.value).length}</span>}</button>)}</div>
+    <div className={styles.outcomeTabs} role="group" aria-label="Filter by decision outcome">{tabs.map((tab) => <button key={tab.value} type="button" aria-pressed={outcome === tab.value} onClick={() => { clearSelection(); setPage(0); setOutcome(tab.value); }}>{tab.label}{data && <span>{cohort.filter((record) => tab.value === "all" || record.decision === tab.value).length}</span>}</button>)}</div>
     {error && <ErrorMessage message={error} retry={reload} />}
     {loading && !data && <ReferenceLoading label="Loading decisions" />}
-    {data && records.length === 0 && <div className={styles.empty}><DashboardIcon name={data.length ? "magnifying-glass" : "scroll"} size={28} /><h2>{data.length ? "No decisions match these filters" : "Your decisions will be recorded here"}</h2><p>{data.length ? "Try another search or include all review outcomes." : "Approve copy or request changes from a submission to start its decision history."}</p>{data.length ? <button className={buttonClass({ variant: "secondary" })} onClick={() => { clearSelection(); setQuery(""); setProduct("all"); setOutcome("all"); }}>Clear filters</button> : <Link className={buttonClass({ variant: "primary" })} href="/">Open review desk</Link>}</div>}
+    {data && records.length === 0 && <div className={styles.empty}><DashboardIcon name={data.length ? "magnifying-glass" : "scroll"} size={28} /><h2>{data.length ? "No decisions match these filters" : "Your decisions will be recorded here"}</h2><p>{data.length ? "Try another search or include all review outcomes." : "Approve copy or request changes from a submission to start its decision history."}</p>{data.length ? <button className={buttonClass({ variant: "secondary" })} onClick={() => { clearSelection(); setPage(0); setQuery(""); setProduct("all"); setOutcome("all"); }}>Clear filters</button> : <Link className={buttonClass({ variant: "primary" })} href="/">Open review desk</Link>}</div>}
     {data && records.length > 0 && <div className={styles.logLayout} aria-busy={loading}>
       <section aria-labelledby="decision-list-title" className={styles.records}>
         <div className={styles.sectionHeading}><h2 id="decision-list-title" ref={listHeading} tabIndex={-1}>Decisions, newest first</h2><button type="button" className={styles.refresh} onClick={reload} disabled={loading}><DashboardIcon name="rotate-right" size={12} />Refresh</button></div>
-        <ul className={styles.recordList}>{records.map((record) => <li key={record.id}><a href={`#${record.id}`} className={styles.record} aria-current={record.id === selected?.id ? "true" : undefined} data-historical={record.revision < record.currentRevision} onClick={(event) => selectRecord(event, record.id)}>
+        <ul className={styles.recordList}>{visible.map((record) => <li key={record.id}><a href={`#${record.id}`} className={styles.record} aria-current={record.id === selected?.id ? "true" : undefined} data-historical={record.revision < record.currentRevision} onClick={(event) => selectRecord(event, record.id)}>
           <span className={styles.recordTop}><strong>{record.title}</strong><span className={styles.revision}>Rev. {record.revision}</span></span>
           <span className={styles.recordMeta}><CaseStatusBadge status={record.decision === "approve" ? "approved" : "changes_requested"} /><span>{record.publisher}</span></span>
           {hasDecisionFeedback(record.feedback) && <span className={styles.recordFeedback}>{record.feedback}</span>}
           <span className={styles.recordBottom}><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time>{record.caseDeleted ? <strong>Archived submission</strong> : record.revision < record.currentRevision && <strong>Earlier revision (current: {record.currentRevision})</strong>}</span>
         </a></li>)}</ul>
+        {records.length > decisionPageSize && <div className={styles.pager}>
+          <span role="status">Showing {pageStart + 1}&#8211;{pageEnd} of {records.length} decisions</span>
+          <div className={styles.pagerSteps}>
+            <button type="button" className={styles.pagerStep} aria-label="Previous page" disabled={!hasPrev} onClick={() => goToPage(currentPage - 1)}><DashboardIcon name="arrow-left" size={12} /></button>
+            <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!hasNext} onClick={() => goToPage(currentPage + 1)}><DashboardIcon name="arrow-right" size={12} /></button>
+          </div>
+        </div>}
       </section>
       <aside className={styles.decisionDetail} aria-labelledby="decision-detail-title">
         <div className={styles.detailHeading}><h2 id="decision-detail-title" ref={detailHeading} tabIndex={-1}>Decision record{selected && <span>Revision {selected.revision}</span>}</h2><button type="button" className={styles.backToList} onClick={() => { listHeading.current?.focus({ preventScroll: true }); listHeading.current?.scrollIntoView({ block: "start" }); }}><DashboardIcon name="arrow-left" size={12} />Back to list</button></div>

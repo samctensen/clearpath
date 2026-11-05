@@ -26,3 +26,15 @@ export function parseRevisionParam(value: string | string[] | undefined): number
   const number = Number(value);
   return Number.isSafeInteger(number) ? number : null;
 }
+
+/** The decision list is paged. A linked record decides the page, so a deep link is never off-screen. */
+export const decisionPageSize = 8;
+
+export function decisionLogPage(total: number, requested: number, selectedIndex: number, pageSize = decisionPageSize) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = selectedIndex >= 0
+    ? Math.min(Math.floor(selectedIndex / pageSize), pageCount - 1)
+    : Math.min(Math.max(requested, 0), pageCount - 1);
+  const start = page * pageSize;
+  return { page, start, end: Math.min(start + pageSize, total), hasPrev: page > 0, hasNext: page < pageCount - 1 };
+}
