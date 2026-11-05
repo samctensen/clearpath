@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { useRouter } from "next/navigation";
 import type { DraftRetention } from "@/lib/submission-draft";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
-import styles from "./draft-safety.module.css";
+import { Button } from "./ui";
+import { discardArea, discardButton, draftDialog } from "./draft-safety";
 
 export type ActiveDraft = { dirty: boolean; busy: boolean; retain: () => DraftRetention; discard: () => void };
 type DraftGuard = {
@@ -138,12 +139,12 @@ function LeaveDraftDialog({ prompt, onStay, onLeave }: { prompt: LeavePrompt; on
     stay.current?.focus({ preventScroll: true });
     return () => { element?.close(); if (previous?.isConnected) previous.focus({ preventScroll: true }); else if (fallback?.isConnected) fallback.focus({ preventScroll: true }); };
   }, []);
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} onCancel={event => { event.preventDefault(); onStay(); }}>
+  return <dialog ref={dialog} className={draftDialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} onCancel={event => { event.preventDefault(); onStay(); }}>
     <header><DashboardIcon name="file-lines" size={21} /><h2 id={`${id}-title`}>{prompt.busy ? "Submission in progress" : "Leave this draft?"}</h2></header>
     <p id={`${id}-description`}>{prompt.busy ? "Wait for the submission to finish before leaving or switching roles." : !canKeep ? "This draft is only kept while the app stays open. Leaving this page would lose it. Keep editing, or explicitly discard your changes to leave." : prompt.retention === "memory" ? "Your draft will stay available as you move within this app. Reloading or closing the tab may lose it. Nothing is submitted when you leave." : "Your unsent changes can stay in this tab for you to resume. Nothing is submitted when you leave."}{!prompt.busy && " Discarding removes these unsent changes."}</p>
     <footer>
-      <button ref={stay} className="button secondary" type="button" onClick={onStay}>Keep editing</button>
-      {!prompt.busy && <><button className="button primary" type="button" disabled={!canKeep} onClick={() => onLeave(false)}>Keep draft and leave</button><div className={styles.discardArea}><button className={`button ghost ${styles.discardButton}`} type="button" onClick={() => onLeave(true)}>Discard draft</button></div></>}
+      <Button ref={stay} variant="secondary" onClick={onStay}>Keep editing</Button>
+      {!prompt.busy && <><Button variant="primary" disabled={!canKeep} onClick={() => onLeave(false)}>Keep draft and leave</Button><div className={discardArea}><Button variant="ghost" className={discardButton} onClick={() => onLeave(true)}>Discard draft</Button></div></>}
     </footer>
   </dialog>;
 }

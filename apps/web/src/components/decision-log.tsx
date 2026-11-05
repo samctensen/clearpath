@@ -8,13 +8,12 @@ import { decisionReviewEvents, hasDecisionFeedback } from "@/lib/reference-pages
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { CustomSelect } from "./ui/custom-select";
 import { HeaderSearch, PageHeader } from "./ui/page-header";
-import { CaseStatusBadge, ErrorMessage, formatTime } from "./ui";
+import { CaseStatusBadge, CheckBadge, ErrorMessage, buttonClass, formatTime } from "./ui";
 import { ReferenceLoading } from "./policy-guide";
-import styles from "./workspace-reference.module.css";
+import { styles } from "./workspace-reference";
 
 type Outcome = "all" | DecisionRecord["decision"];
 const tabs: { value: Outcome; label: string }[] = [{ value: "all", label: "All decisions" }, { value: "approve", label: "Copy approved" }, { value: "request_changes", label: "Changes requested" }];
-const checkLabels = { passed: "Passed", finding: "Finding", unknown: "Unable to evaluate", not_applicable: "Not applicable" };
 
 export function DecisionLog() {
   const { data, loading, error, reload } = useResource<DecisionRecord[]>("/decisions");
@@ -76,7 +75,7 @@ export function DecisionLog() {
     <div className={styles.outcomeTabs} role="group" aria-label="Filter by decision outcome">{tabs.map((tab) => <button key={tab.value} type="button" aria-pressed={outcome === tab.value} onClick={() => { clearSelection(); setOutcome(tab.value); }}>{tab.label}{data && <span>{cohort.filter((record) => tab.value === "all" || record.decision === tab.value).length}</span>}</button>)}</div>
     {error && <ErrorMessage message={error} retry={reload} />}
     {loading && !data && <ReferenceLoading label="Loading decisions" />}
-    {data && records.length === 0 && <div className={styles.empty}><DashboardIcon name={data.length ? "magnifying-glass" : "scroll"} size={28} /><h2>{data.length ? "No decisions match these filters" : "Your decisions will be recorded here"}</h2><p>{data.length ? "Try another search or include all review outcomes." : "Approve copy or request changes from a submission to start its decision history."}</p>{data.length ? <button className="button secondary" onClick={() => { clearSelection(); setQuery(""); setProduct("all"); setOutcome("all"); }}>Clear filters</button> : <Link className="button primary" href="/">Open review desk</Link>}</div>}
+    {data && records.length === 0 && <div className={styles.empty}><DashboardIcon name={data.length ? "magnifying-glass" : "scroll"} size={28} /><h2>{data.length ? "No decisions match these filters" : "Your decisions will be recorded here"}</h2><p>{data.length ? "Try another search or include all review outcomes." : "Approve copy or request changes from a submission to start its decision history."}</p>{data.length ? <button className={buttonClass({ variant: "secondary" })} onClick={() => { clearSelection(); setQuery(""); setProduct("all"); setOutcome("all"); }}>Clear filters</button> : <Link className={buttonClass({ variant: "primary" })} href="/">Open review desk</Link>}</div>}
     {data && records.length > 0 && <div className={styles.logLayout} aria-busy={loading}>
       <section aria-labelledby="decision-list-title" className={styles.records}>
         <div className={styles.sectionHeading}><h2 id="decision-list-title" ref={listHeading} tabIndex={-1}>Decisions, newest first</h2><button type="button" className={styles.refresh} onClick={reload} disabled={loading}><DashboardIcon name="rotate-right" size={12} />Refresh</button></div>
@@ -134,12 +133,12 @@ function DecisionContent({ record, resource }: {
     {error && <ErrorMessage message={error} retry={reload} />}
     {revision && <>
       <section className={styles.snapshot}><div className={styles.sectionHeading}><h3>Reviewed copy</h3><span>{formatLabels[revision.input.format]}</span></div><blockquote>{revision.input.content}</blockquote><span className={styles.snapshotMeta}>{revision.input.completeAsset ? "Complete asset" : "Partial asset"}</span></section>
-      <section className={styles.checkDetails}><h3>Checks at this decision</h3><ul>{revision.analysis.checks.map((check) => <li key={check.ruleId}><Link href={`/policies#${encodeURIComponent(check.ruleId)}`}>{check.title}</Link><span className={`check-badge check-${check.status}`}>{checkLabels[check.status]}</span></li>)}</ul>
+      <section className={styles.checkDetails}><h3>Checks at this decision</h3><ul>{revision.analysis.checks.map((check) => <li key={check.ruleId}><Link href={`/policies#${encodeURIComponent(check.ruleId)}`}>{check.title}</Link><CheckBadge status={check.status} /></li>)}</ul>
         {reviewEvents.length > 0 && <div className={styles.reviewReasons}><h3>Reviewer actions on revision {record.revision}</h3><ol>{reviewEvents.map((event) => <li key={event.id}><p>{event.message}</p><time dateTime={event.createdAt}>{formatTime(event.createdAt)}</time></li>)}</ol></div>}
         {revision.analysis.checks.some((check) => check.status === "finding" || check.status === "unknown") && <p>These are the automated results before the human decision. Reviewer actions record how concerns were handled.</p>}
       </section>
     </>}
     {data && !revision && <div className={styles.feedback}><p>The reviewed revision could not be found. Open the case to inspect its history.</p></div>}
-    <footer className={styles.decisionFooter}>{!record.caseDeleted && <Link className="button secondary" href={`/cases/${encodeURIComponent(record.caseId)}?revision=${record.revision}`}>Open revision {record.revision}<DashboardIcon name="arrow-up-right" size={12} /></Link>}<button type="button" className="button ghost" onClick={copyLink}><DashboardIcon name="link" size={12} />Copy decision link</button>{copyState && <p className={styles.copyStatus} role="status">{copyState}</p>}</footer>
+    <footer className={styles.decisionFooter}>{!record.caseDeleted && <Link className={buttonClass({ variant: "secondary" })} href={`/cases/${encodeURIComponent(record.caseId)}?revision=${record.revision}`}>Open revision {record.revision}<DashboardIcon name="arrow-up-right" size={12} /></Link>}<button type="button" className={buttonClass({ variant: "ghost" })} onClick={copyLink}><DashboardIcon name="link" size={12} />Copy decision link</button>{copyState && <p className={styles.copyStatus} role="status">{copyState}</p>}</footer>
   </>;
 }

@@ -1,7 +1,8 @@
 import { statusLabels, type CaseStatus } from "@clearpath/contracts";
 import { dashboardStatuses } from "@/lib/dashboard";
 import { DashboardIcon } from "./dashboard-icon";
-import styles from "./dashboard-loading.module.css";
+import { cn } from "../ui";
+import { styles } from "./dashboard-loading.styles";
 
 export function ReviewMapLoading({ unavailable = false, selected, onSelect }: {
   unavailable?: boolean;
@@ -30,17 +31,17 @@ export function ReviewMapLoading({ unavailable = false, selected, onSelect }: {
 
 export function UpNextLoading() {
   return <div className={styles.next} role="status"><span className="sr-only">Loading next submissions</span>
-    {[0, 1, 2].map(index => <div className={styles.nextRow} key={index} aria-hidden="true"><span className={`${styles.block} ${styles.title}`} /><span className={`${styles.block} ${styles.detail}`} /></div>)}
+    {[0, 1, 2].map(index => <div className={styles.nextRow} key={index} aria-hidden="true"><span className={cn(styles.block, styles.title)} /><span className={cn(styles.block, styles.detail)} /></div>)}
   </div>;
 }
 
 export function QueueRowsLoading() {
   return <tbody className={styles.rows} aria-hidden="true">{[0, 1, 2, 3].map(index => <tr key={index}>
-    <td><span className={`${styles.block} ${styles.campaign}`} /><span className={`${styles.block} ${styles.publisher}`} /></td>
-    <td data-label="Product"><span className={`${styles.block} ${styles.product}`} /><span className={`${styles.block} ${styles.detail}`} /></td>
-    <td data-label="Copy checks"><span className={`${styles.block} ${styles.short}`} /></td>
-    <td data-label="Target date"><span className={`${styles.block} ${styles.short}`} /></td>
-    <td data-label="Status"><span className={`${styles.block} ${styles.pill}`} /></td>
+    <td><span className={cn(styles.block, styles.campaign)} /><span className={cn(styles.block, styles.publisher)} /></td>
+    <td data-label="Product"><span className={cn(styles.block, styles.product)} /><span className={cn(styles.block, styles.detail)} /></td>
+    <td data-label="Copy checks"><span className={cn(styles.block, styles.short)} /></td>
+    <td data-label="Target date"><span className={cn(styles.block, styles.short)} /></td>
+    <td data-label="Status"><span className={cn(styles.block, styles.pill)} /></td>
     <td />
   </tr>)}</tbody>;
 }

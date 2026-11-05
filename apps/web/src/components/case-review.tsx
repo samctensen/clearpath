@@ -21,11 +21,12 @@ import { ReviewCoverage } from "./review-coverage";
 import { RevisionComparison } from "./revision-comparison";
 import { SubmissionForm } from "./submission-form";
 import { AutomatedMissingInformation, ChangeRequestContent, SubmissionFeedback } from "./submissions/submission-feedback";
-import { CaseStatusBadge, ErrorMessage, formatDate, formatTime } from "./ui";
+import { CaseStatusBadge, ErrorMessage, Notice, buttonClass, cn, formatDate, formatTime, textLink } from "./ui";
+import { checkList } from "./ui/check";
 import { CustomSelect } from "./ui/custom-select";
 import { PageHeader } from "./ui/page-header";
 import { useDemoRole } from "./workspace";
-import styles from "./case-review.module.css";
+import { styles } from "./case-review.styles";
 
 const activityLabels = {
   submitted: "Submitted",
@@ -59,7 +60,7 @@ export function CaseReview({ id, initialRevision = null }: { id: string; initial
         if (loaded) setGeneration(value => value + 1);
         return loaded;
       }} />}
-      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className="button secondary" href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
+      {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className={buttonClass({ variant: "secondary" })} href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
         <ReviewDesk key={`${path}:${generation}`} detail={resource.data} path={path} onChange={resource.replace} onReload={() => requestLeave(() => setRefreshPrompt(true))} onDecisionSaved={() => { void resource.reload(); }} initialRevision={initialRevision} hasUpdate={resource.hasUpdate} refreshError={resource.error} />
       ) : <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><ErrorMessage message={resource.error} retry={resource.reload} /></>}
     </div>
@@ -178,15 +179,15 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
         back={{ href: "/", label: role === "submitter" ? "Submissions" : "Review queue" }}
         actions={<>
           {role === "submitter" && isCurrent && !editing && (
-            <button type="button" className="button primary" disabled={pending} onClick={() => setEditing(true)}><DashboardIcon name="pen" size={15} />{detail.case.status === "changes_requested" ? "Revise copy" : detail.case.status === "needs_information" ? "Add information" : "Edit copy"}</button>
+            <button type="button" className={buttonClass({ variant: "primary" })} disabled={pending} onClick={() => setEditing(true)}><DashboardIcon name="pen" size={15} />{detail.case.status === "changes_requested" ? "Revise copy" : detail.case.status === "needs_information" ? "Add information" : "Edit copy"}</button>
           )}
-          {canReview && !editing && <a href="#decision" className="button secondary">Review decision<DashboardIcon name="arrow-right" size={15} /></a>}
+          {canReview && !editing && <a href="#decision" className={buttonClass({ variant: "secondary" })}>Review decision<DashboardIcon name="arrow-right" size={15} /></a>}
         </>}
       >
         <div className={styles.headingContext}>{role === "submitter" && detail.case.status === "ready_for_review" ? <span>Awaiting review</span> : <CaseStatusBadge status={detail.case.status} />}<span>Current revision {current.number}</span></div>
       </PageHeader>
 
-      {hasUpdate && <div className="notice" role="status"><DashboardIcon name="circle-info" size={18} /><div><strong>New activity is available</strong><p>Your open revision and unsaved work have been kept in place. Finish or cancel your edits before loading the latest submission.</p><button type="button" className="button secondary small" disabled={editing || pending || approving} onClick={onReload}>Load latest submission</button></div></div>}
+      {hasUpdate && <Notice role="status"><DashboardIcon name="circle-info" size={18} /><div><strong>New activity is available</strong><p>Your open revision and unsaved work have been kept in place. Finish or cancel your edits before loading the latest submission.</p><button type="button" className={buttonClass({ variant: "secondary", size: "small" })} disabled={editing || pending || approving} onClick={onReload}>Load latest submission</button></div></Notice>}
       {refreshError && <ErrorMessage message={`Live updates unavailable. ${refreshError}`} />}
 
       {editing && role === "submitter" && isCurrent && detail.case.status === "needs_information" && <AutomatedMissingInformation revision={current} />}
@@ -240,7 +241,7 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
               {previous && (
                 <button
                   type="button"
-                  className={`button secondary small ${styles.compareButton}`}
+                  className={buttonClass({ variant: "secondary", size: "small", className: styles.compareButton })}
                   aria-pressed={comparing}
                   aria-label={comparing ? "Hide the comparison with the previous revision" : "Compare with the previous revision"}
                   onClick={() => setComparing(!comparing)}
@@ -250,14 +251,14 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
             <ReviewCoverage analysis={revision.analysis} onShowCheck={jumpToCheck} />
           </section>
           {role === "reviewer" && decision && (
-            <div role="status" className={`notice ${decision.type === "approved" ? "notice-approved" : "notice-changes"}`}>
+            <Notice role="status" tone={decision.type === "approved" ? "approved" : "waiting"}>
               <DashboardIcon name={decision.type === "approved" ? "circle-check" : "file-lines"} size={19} />
               <div><strong>{activityLabels[decision.type]} for revision {revision.number}</strong>{decision.changeRequest ? <ChangeRequestContent feedback={decision.changeRequest} /> : <p>{decision.message}</p>}{isCurrent && decision.type === "changes_requested" && <p>Awaiting a new revision from the submitter.</p>}</div>
-            </div>
+            </Notice>
           )}
           {role === "reviewer" && isCurrent && isDecided && <CaseQueueActions key={detail.case.id} caseId={detail.case.id} />}
-          {!isCurrent && <div className="notice"><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={`button secondary small ${styles.returnToCurrent}`} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></div>}
-          <div className="action-notice" ref={actionNotice}>
+          {!isCurrent && <Notice><DashboardIcon name="circle-exclamation" size={18} /><div><strong>Viewing revision {revision.number}</strong><p>This revision is read-only. Review actions apply to revision {current.number}.</p></div><button type="button" className={buttonClass({ variant: "secondary", size: "small", className: styles.returnToCurrent })} disabled={pending} onClick={() => { setSelected(null); const url = new URL(window.location.href); url.searchParams.delete("revision"); window.history.replaceState(null, "", url); setComparing(false); setActiveExcerpt(""); }}>View current revision</button></Notice>}
+          <div className="[&_.cp-error]:mb-[17px]" ref={actionNotice}>
             {actionError && <ErrorMessage message={actionError.message} retry={actionError.conflict ? onReload : undefined} retryLabel="Reload submission" />}
             <div className="sr-only" role="status">{pending ? "Saving review action" : ""}</div>
           </div>
@@ -297,7 +298,7 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
                 <p className={styles.checkScope}>Text-only checks. Visual and legal review are separate.</p>
                 <details className={styles.scopeDetails}><summary>Full check scope</summary><p>{revision.analysis.scope}</p></details>
                 {concerns.length > 0 && (
-                  <div className="check-list" key={revision.id}>
+                  <div className={checkList} key={revision.id}>
                     {concerns.map((check) => (
                       <div key={check.ruleId} id={`review-check-${encodeURIComponent(check.ruleId)}`} data-check={check.ruleId} className={styles.checkTarget} role="group" aria-label={`${check.title} evidence`} tabIndex={-1}>
                       <CheckEvidence check={check} onShowExcerpt={marked.some((part) => part.rules.includes(check.ruleId)) ? () => jumpToExcerpt(check.ruleId) : undefined}
@@ -311,7 +312,7 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
                 {concerns.length === 0 && <div className={styles.noConcerns}><DashboardIcon name="circle-check" size={18} /><p>No concerns were flagged by these checks. Human review is still required.</p></div>}
                 <details className={styles.coverageDetails} ref={passedChecksRef}>
                   <summary>Passed and not applicable checks <span>{revision.analysis.checks.length - concerns.length}</span></summary>
-                  <div className="check-list">
+                  <div className={checkList}>
                     {revision.analysis.checks.filter((check) => !isConcern(check)).map((check) => (
                       <div key={check.ruleId} id={`review-check-${encodeURIComponent(check.ruleId)}`} data-check={check.ruleId} className={styles.checkTarget} role="group" aria-label={`${check.title} evidence`} tabIndex={-1}>
                       <CheckEvidence check={check}
@@ -354,7 +355,7 @@ function OfferReference({ revision }: { revision: Revision }) {
         <div><dt>Offer version</dt><dd>{offerVersion ?? "Unknown"}</dd></div>
       </dl>
       {offerId && offerVersion && <MatchingOffer offerId={offerId} version={offerVersion} />}
-      <Link className="text-link" href={offerId ? `/catalog#${encodeURIComponent(offerId)}` : "/catalog"}>View offer library<DashboardIcon name="arrow-up-right" size={13} /></Link>
+      <Link className={textLink} href={offerId ? `/catalog#${encodeURIComponent(offerId)}` : "/catalog"}>View offer library<DashboardIcon name="arrow-up-right" size={13} /></Link>
     </section>
   );
 }
@@ -362,8 +363,8 @@ function OfferReference({ revision }: { revision: Revision }) {
 function MatchingOffer({ offerId, version }: { offerId: string; version: string }) {
   const catalog = useResource<CatalogData>("/catalog");
   const offer = catalog.data?.offers.find((item) => item.id === offerId && item.version === version);
-  if (catalog.loading) return <p className="muted">Loading offer terms…</p>;
-  if (!offer) return <p className="muted">Terms for this offer version are unavailable.</p>;
+  if (catalog.loading) return <p className="text-muted">Loading offer terms…</p>;
+  if (!offer) return <p className="text-muted">Terms for this offer version are unavailable.</p>;
   return <div className={styles.offerSnapshot}><h3>{offer.name}</h3><OfferTerms offer={offer} /></div>;
 }
 
@@ -377,7 +378,7 @@ function RevisionEditor({ path, revision, wasApproved, onCancel, onSaved }: {
   }, [catalog.loading]);
   return (
     <>
-      {wasApproved && <div className="notice"><DashboardIcon name="circle-info" size={18} /><div><strong>Editing approved copy</strong><p>Submitting creates revision {revision.number + 1} and sends it back for review.</p></div></div>}
+      {wasApproved && <Notice><DashboardIcon name="circle-info" size={18} /><div><strong>Editing approved copy</strong><p>Submitting creates revision {revision.number + 1} and sends it back for review.</p></div></Notice>}
       {!formReady ? <CaseLoading label="Loading revision form" /> : (
         <SubmissionForm
           initial={revision.input}
@@ -401,7 +402,7 @@ function ActivityTimeline({ events }: { events: CaseDetail["events"] }) {
         {events.slice().reverse().map((event) => (
           <li key={event.id}><span className={styles.timelineDot} aria-hidden="true" /><div className={styles.activityEvent}><div className={styles.eventHeading}><strong>{activityLabels[event.type]}</strong><time dateTime={event.createdAt}>{formatTime(event.createdAt)}</time></div><p>{event.message}</p><div className={styles.eventMetadata}><span>Revision {event.revision}</span><span>{event.actor}</span></div></div></li>
         ))}
-      </ol> : <p className="muted">No activity yet.</p>}
+      </ol> : <p className="text-muted">No activity yet.</p>}
     </section>
   );
 }

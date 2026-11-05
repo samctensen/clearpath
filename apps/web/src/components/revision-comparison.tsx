@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import type { CheckResult, Revision } from "@clearpath/contracts";
 import { buildTextDiff, checkChangeLabels, compareRevisionChecks, compareRevisionMetadata, type TextChange } from "@/lib/revision-comparison";
-import { CheckBadge } from "./check-evidence";
+import { CheckBadge } from "./ui";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
-import styles from "./revision-comparison.module.css";
+import { styles } from "./revision-comparison.styles";
 
 export function RevisionComparison({ current, previous }: { current: Revision; previous: Revision }) {
   const diff = useMemo(() => buildTextDiff(previous.input.content, current.input.content), [previous.input.content, current.input.content]);

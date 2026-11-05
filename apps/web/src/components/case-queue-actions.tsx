@@ -8,6 +8,7 @@ import { api, errorMessage } from "@/lib/api";
 import { dashboardRequest, defaultDashboardFilters } from "@/lib/dashboard";
 import { nextReviewInQueue, readQueueContext, writeQueueContext } from "@/lib/queue-context";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
+import { Button, actionRow, buttonClass } from "./ui";
 
 /** Fresh eligibility is checked only after a deliberate Next review click. */
 export function CaseQueueActions({ caseId }: { caseId: string }) {
@@ -51,11 +52,11 @@ export function CaseQueueActions({ caseId }: { caseId: string }) {
   }
 
   return <div>
-    <div className="action-row">
-      <Link href="/" className="button secondary"><DashboardIcon name="arrow-left" size={15} />Return to queue</Link>
-      <button type="button" className="button primary" disabled={pending} onClick={() => void openNext()}>{pending ? "Finding next review…" : "Next review"}<DashboardIcon name="arrow-right" size={15} /></button>
+    <div className={actionRow}>
+      <Link href="/" className={buttonClass({ variant: "secondary" })}><DashboardIcon name="arrow-left" size={15} />Return to queue</Link>
+      <Button variant="primary" disabled={pending} onClick={() => void openNext()}>{pending ? "Finding next review…" : "Next review"}<DashboardIcon name="arrow-right" size={15} /></Button>
     </div>
-    {message && <p className="muted" role="status">{message}</p>}
+    {message && <p className="text-muted" role="status">{message}</p>}
     {error && <p role="alert">{error}</p>}
   </div>;
 }

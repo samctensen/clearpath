@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import type { CaseStatus, DemoRole } from "@clearpath/contracts";
 import type { QueueAction } from "./queue-action-dialog";
 import { DashboardIcon } from "./dashboard-icon";
-import styles from "./queue-row-actions.module.css";
+import { styles } from "./queue-row-actions.styles";
 
 export function QueueRowActions({ caseId, title, status, role, onAction }: {
   caseId: string;
@@ -107,7 +107,7 @@ export function QueueRowActions({ caseId, title, status, role, onAction }: {
     }
   }
 
-  return <div className={styles.root}>
+  return <div>
     <button ref={trigger} type="button" className={styles.trigger} aria-label={`Actions for ${title}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       onClick={() => { initialFocus.current = "first"; setOpen(value => !value); }}
       onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); initialFocus.current = event.key === "ArrowUp" ? "last" : "first"; setOpen(true); } }}>

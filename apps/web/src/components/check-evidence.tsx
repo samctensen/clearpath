@@ -1,14 +1,20 @@
 import type { Analysis, CheckResult } from "@clearpath/contracts";
-import { DashboardIcon } from "./dashboard/dashboard-icon";
 import type { ReactNode } from "react";
 import Link from "next/link";
-
-const checkLabels = {
-  passed: "Passed",
-  finding: "Finding",
-  unknown: "Unable to evaluate",
-  not_applicable: "Not applicable",
-};
+import { DashboardIcon } from "./dashboard/dashboard-icon";
+import { CheckBadge } from "./ui";
+import { cn } from "./ui/cn";
+import {
+  checkCard,
+  checkCardHeading,
+  checkChange,
+  coverageSummary,
+  evidenceJump,
+  evidenceQuote,
+  severityLabel,
+  sourceLine,
+  suggestion,
+} from "./ui/check";
 
 const sourceLabels = {
   regulatory_reference: "Regulatory reference",
@@ -16,10 +22,7 @@ const sourceLabels = {
   product_fact: "Product fact",
 };
 
-export function CheckBadge({ status }: { status: CheckResult["status"] }) {
-  const icon = { passed: "check", finding: "triangle-exclamation", unknown: "circle-question", not_applicable: "minus" }[status];
-  return <span className={`check-badge check-${status}`}><DashboardIcon name={icon} size={13} aria-hidden="true" />{checkLabels[status]}</span>;
-}
+export { CheckBadge };
 
 export function AnalysisSummary({ analysis }: { analysis: Analysis }) {
   const counts = {
@@ -30,10 +33,10 @@ export function AnalysisSummary({ analysis }: { analysis: Analysis }) {
   };
 
   return (
-    <ul className="coverage-summary" aria-label="Check coverage">
-      <li className="coverage-passed"><span />{counts.passed} passed</li>
-      <li className="coverage-finding"><span />{counts.finding} {counts.finding === 1 ? "finding" : "findings"}</li>
-      <li className="coverage-unknown"><span />{counts.unknown} unable to evaluate</li>
+    <ul className={coverageSummary} aria-label="Check coverage">
+      <li className="text-approved"><span />{counts.passed} passed</li>
+      <li className="text-info"><span />{counts.finding} {counts.finding === 1 ? "finding" : "findings"}</li>
+      <li className="text-waiting"><span />{counts.unknown} unable to evaluate</li>
       <li><span />{counts.not_applicable} not applicable</li>
     </ul>
   );
@@ -46,18 +49,20 @@ export function CheckEvidence({ check, children, onShowExcerpt, change }: {
   change?: string;
 }) {
   return (
-    <article className={`check-card evidence-${check.status}`}>
-      <div className="check-card-heading"><h3>{check.title}</h3><CheckBadge status={check.status} /></div>
-      {check.status === "finding" && check.severity !== "info" && <span className="severity-label">{check.severity === "high" ? "High severity" : "Medium severity"}</span>}
-      {change && <p className="check-change">{change}</p>}
+    <article className={checkCard}>
+      <div className={checkCardHeading}><h3>{check.title}</h3><CheckBadge status={check.status} /></div>
+      {check.status === "finding" && check.severity !== "info" && (
+        <span className={severityLabel}>{check.severity === "high" ? "High severity" : "Medium severity"}</span>
+      )}
+      {change && <p className={checkChange}>{change}</p>}
       <p>{check.explanation}</p>
       {check.excerpt && (
         onShowExcerpt
-          ? <button className="evidence-quote evidence-jump" type="button" onClick={onShowExcerpt} title="Show this excerpt in the copy">“{check.excerpt.text}”</button>
-          : <blockquote className="evidence-quote">“{check.excerpt.text}”</blockquote>
+          ? <button className={cn(evidenceQuote, evidenceJump)} type="button" onClick={onShowExcerpt} title="Show this excerpt in the copy">“{check.excerpt.text}”</button>
+          : <blockquote className={evidenceQuote}>“{check.excerpt.text}”</blockquote>
       )}
-      {check.suggestion && <p className="suggestion"><strong>Suggested next step</strong>{check.suggestion}</p>}
-      <div className="source-line">
+      {check.suggestion && <p className={suggestion}><strong>Suggested next step</strong>{check.suggestion}</p>}
+      <div className={sourceLine}>
         <span>{sourceLabels[check.reference.type]}</span>
         {check.reference.url ? (
           <a href={check.reference.url} target="_blank" rel="noreferrer">{check.reference.label}<DashboardIcon name="arrow-up-right" size={13} aria-hidden="true" /></a>

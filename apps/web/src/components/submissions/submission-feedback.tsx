@@ -1,6 +1,6 @@
 import type { Activity, CaseDetail, ChangeRequestFeedback, Revision } from "@clearpath/contracts";
-import { CheckBadge } from "../check-evidence";
-import styles from "./submission-feedback.module.css";
+import { CheckBadge } from "../ui";
+import { styles } from "./submission-feedback.styles";
 
 /** The same readable correction items are used in the send preview and saved feedback. */
 export function ChangeRequestContent({ feedback }: { feedback: ChangeRequestFeedback }) {

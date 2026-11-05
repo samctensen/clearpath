@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { formatLabels, productLabels, type CaseDetail, type Revision } from "@clearpath/contracts";
 import { api, errorMessage } from "@/lib/api";
 import type { SubmissionDraftInput } from "@/lib/submission-draft";
-import { ErrorMessage } from "./ui";
-import styles from "./draft-safety.module.css";
+import { Button, ErrorMessage } from "./ui";
+import { dialogActions, draftCompare, draftConfirm, draftCopy, draftNotice } from "./draft-safety";
 
 export function DraftConflictRecovery({ casePath, baseRevision, input, onContinue }: {
   casePath: string; baseRevision?: number; input: SubmissionDraftInput; onContinue: (revision: Revision) => void;
@@ -29,18 +29,18 @@ export function DraftConflictRecovery({ casePath, baseRevision, input, onContinu
     } catch (failure) { setError(errorMessage(failure)); }
     finally { setLoading(false); }
   }
-  return <section className={styles.notice} aria-labelledby="draft-conflict-title" aria-busy={loading}>
+  return <section className={draftNotice} aria-labelledby="draft-conflict-title" aria-busy={loading}>
     <h2 ref={heading} tabIndex={-1} id="draft-conflict-title">The saved submission changed</h2>
     <p>Your draft from revision {baseRevision ?? "unknown"} is preserved below. Review the latest saved revision before continuing. Nothing has been submitted.</p>
-    <div className={styles.actions}><button className="button secondary" type="button" disabled={loading} onClick={() => void loadLatest()}>{loading ? "Loading latest revision…" : latest ? "Refresh latest revision" : "Review latest revision"}</button></div>
+    <div className={dialogActions}><Button variant="secondary" disabled={loading} onClick={() => void loadLatest()}>{loading ? "Loading latest revision…" : latest ? "Refresh latest revision" : "Review latest revision"}</Button></div>
     {error && <ErrorMessage message={error} />}
     {latest && <>
-      <div className={styles.compare}>
+      <div className={draftCompare}>
         <DraftSnapshot title={`Latest saved · revision ${latest.number}`} input={latest.input} />
         <DraftSnapshot title="Your unsent draft" input={input} />
       </div>
-      <label className={styles.confirm}><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I reviewed the latest copy and context. Keep all my draft fields to prepare revision {latest.number + 1}.</span></label>
-      <div className={styles.actions}><button className="button primary" type="button" disabled={!confirmed || loading} onClick={() => onContinue(latest)}>Continue draft from revision {latest.number}</button></div>
+      <label className={draftConfirm}><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I reviewed the latest copy and context. Keep all my draft fields to prepare revision {latest.number + 1}.</span></label>
+      <div className={dialogActions}><Button variant="primary" disabled={!confirmed || loading} onClick={() => onContinue(latest)}>Continue draft from revision {latest.number}</Button></div>
       <p>You can keep editing and rerun checks before submitting. A later change to the saved revision will require review again.</p>
     </>}
   </section>;
@@ -55,5 +55,5 @@ function DraftSnapshot({ title, input }: { title: string; input: SubmissionDraft
     <div><dt>Target launch</dt><dd>{input.launchDate || "Not set"}</dd></div>
     {input.format === "banner" && <div><dt>Links to application</dt><dd>{input.linksToApplication === null ? "Unknown" : input.linksToApplication ? "Yes" : "No"}</dd></div>}
     <div><dt>Supporting evidence</dt><dd>{input.substantiation || "None provided"}</dd></div>
-  </dl><div className={styles.copy} role="region" aria-label={`${title}, marketing copy`} tabIndex={0}>{input.content || "No copy provided"}</div></section>;
+  </dl><div className={draftCopy} role="region" aria-label={`${title}, marketing copy`} tabIndex={0}>{input.content || "No copy provided"}</div></section>;
 }

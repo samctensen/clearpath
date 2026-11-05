@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type FormEvent } from "react";
+import { z } from "zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -14,19 +15,51 @@ import { invalidateWorkspaceQueries, queryKeys } from "@/lib/query-client";
 import { type SubmissionDraftInput } from "@/lib/submission-draft";
 import { useSubmissionDraft } from "@/lib/use-submission-draft";
 import { DraftConflictRecovery } from "./draft-conflict";
-import draftStyles from "./draft-safety.module.css";
+import { dialogActions, draftNotice, draftStatus } from "./draft-safety";
 import { AnalysisSummary, CheckEvidence } from "./check-evidence";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
-import { ErrorMessage } from "./ui";
+import { Button, ErrorMessage, buttonClass, cn } from "./ui";
 import { CustomSelect } from "./ui/custom-select";
 import { PageHeader } from "./ui/page-header";
 import { useDemoRole } from "./workspace";
-import styles from "./submission-form.module.css";
+import { styles } from "./submission-form.styles";
 
 const emptyInput: SubmissionInput = {
   title: "", productId: "unknown", offerId: null, publisher: "", format: "unknown",
   launchDate: "", content: "", completeAsset: false, linksToApplication: null, substantiation: "",
 };
+
+/**
+ * The submit gate. `submissionSchema` already describes a valid submission, so the form
+ * only restates the one field a draft may leave unanswered: an untouched completeness
+ * select holds `null`, which reads as a prompt rather than a type error.
+ */
+const submitSchema = submissionSchema.extend({
+  completeAsset: z.boolean("Choose Complete asset or Excerpt only."),
+});
+
+/** Zod's length and type text is accurate but terse; an untouched field reads better as a prompt. */
+const emptyFieldMessages: Partial<Record<keyof SubmissionInput, string>> = {
+  title: "Enter a campaign title of at least 3 characters.",
+  publisher: "Enter the publisher or partner responsible for this campaign.",
+  launchDate: "Choose the target launch date.",
+  content: "Paste the marketing copy to review.",
+};
+
+/** Report and focus in the order the fields are read, not the order zod reports them. */
+const fieldOrder = ["title", "publisher", "launchDate", "completeAsset", "content"] as const;
+type FieldErrors = Partial<Record<keyof SubmissionInput, string>>;
+
+function collectFieldErrors(input: SubmissionDraftInput, error: z.ZodError<SubmissionInput>): FieldErrors {
+  const errors: FieldErrors = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0] as keyof SubmissionInput | undefined;
+    if (!field || errors[field]) continue;
+    const value = input[field];
+    errors[field] = (value === "" || value === null) && emptyFieldMessages[field] ? emptyFieldMessages[field] : issue.message;
+  }
+  return errors;
+}
 
 export function NewSubmission() {
   const role = useDemoRole();
@@ -83,15 +116,15 @@ function NewSubmissionDraft({ exampleId, productId, catalog }: { exampleId: stri
 
 function SubmissionSkeleton({ paused = false }: { paused?: boolean }) {
   return (
-    <div className={`${styles.layout} ${paused ? styles.paused : ""}`} role={paused ? undefined : "status"} aria-label={paused ? undefined : "Loading submission form"} aria-busy={!paused}>
+    <div className={cn(styles.layout, paused && styles.paused)} role={paused ? undefined : "status"} aria-label={paused ? undefined : "Loading submission form"} aria-busy={!paused}>
       <div className={styles.editor} aria-hidden="true">
         <div className={styles.section}>
           <h2>Campaign context</h2>
-          <div className={styles.loadingFields}>{Array.from({ length: 7 }, (_, index) => <div className={`${styles.skeleton} ${index === 0 ? styles.wide : ""}`} key={index} />)}</div>
+          <div className={styles.loadingFields}>{Array.from({ length: 7 }, (_, index) => <div className={cn(styles.skeleton, index === 0 && styles.wide)} key={index} />)}</div>
         </div>
-        <div className={styles.section}><h2>Marketing copy</h2><div className={`${styles.skeleton} ${styles.loadingCopy}`} /></div>
+        <div className={styles.section}><h2>Marketing copy</h2><div className={cn(styles.skeleton, styles.loadingCopy)} /></div>
       </div>
-      <div className={styles.rail} aria-hidden="true"><div className={styles.checkPanel}><h2>Self-check</h2><div className={`${styles.skeleton} ${styles.loadingCheck}`} /></div></div>
+      <div className={styles.rail} aria-hidden="true"><div className={styles.checkPanel}><h2>Self-check</h2><div className={cn(styles.skeleton, styles.loadingCheck)} /></div></div>
     </div>
   );
 }
@@ -126,6 +159,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   const [conflict, setConflict] = useState(false);
   const needsLatest = conflict || (revision !== undefined && expectedRevision !== undefined && expectedRevision < revision);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [errorTarget, setErrorTarget] = useState<"analyze" | "save">("save");
   const offers: Offer[] = catalog.data?.offers ?? [];
   const matchingOffers = offers.filter((offer) => offer.productId === input.productId);
@@ -137,6 +171,8 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   function update<K extends keyof SubmissionDraftInput>(key: K, value: SubmissionDraftInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
     setPreview(null);
+    // Correcting a field clears its message; the rest stay until the next attempt.
+    setFieldErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
   }
 
   function changeProduct(productId: ProductId) {
@@ -161,17 +197,20 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
     if (isPending || (mode === "save" && needsLatest)) return;
     setError("");
     setErrorTarget(mode);
-    if (input.completeAsset === null) {
-      setError("Copy provided: choose Complete asset or Excerpt only before continuing.");
-      document.getElementById(`${fieldId}-complete`)?.focus();
-      return;
-    }
-    const parsed = submissionSchema.safeParse(input);
+    const parsed = submitSchema.safeParse(input);
     if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      setError(`${fieldNames[issue.path[0] as keyof SubmissionInput] ?? "Submission"}: ${issue.message}`);
+      const errors = collectFieldErrors(input, parsed.error);
+      const missing = [...fieldOrder, ...(Object.keys(errors) as (keyof SubmissionInput)[])].filter(
+        (field, index, all) => errors[field] && all.indexOf(field) === index,
+      );
+      setFieldErrors(errors);
+      setError(missing.length === 1
+        ? `${fieldNames[missing[0]]}: ${errors[missing[0]]}`
+        : `${missing.length} fields need attention before ${mode === "save" ? "submitting" : "checks can run"}: ${missing.map((field) => fieldNames[field]).join(", ")}.`);
+      document.getElementById(`${fieldId}-${missing[0]}`)?.focus();
       return;
     }
+    setFieldErrors({});
     setPending(mode);
     try {
       if (mode === "analyze") {
@@ -206,14 +245,14 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   ];
 
   return (
-    <form className={`${styles.layout} ${styles.form}`} onSubmit={submit}>
+    <form className={cn(styles.layout, styles.form)} onSubmit={submit} noValidate>
       <div className={styles.editor}>
-        {draft.recovery && <section className={draftStyles.notice} aria-label="Recover unsent draft">
+        {draft.recovery && <section className={draftNotice} aria-label="Recover unsent draft">
           <strong>An unsent draft is available{draft.recovery.baseRevision !== null ? ` from revision ${draft.recovery.baseRevision}` : ""}</strong>
           <p>Restore the copy and context you left in this tab, or discard that draft to use the saved fields below.</p>
-          <div className={draftStyles.actions}><button className="button primary" type="button" onClick={() => { if (draft.recovery?.baseRevision !== (revision ?? null)) setConflict(true); draft.restore(); }}>Restore draft</button><button className="button secondary" type="button" onClick={draft.discard}>Discard saved draft</button></div>
+          <div className={dialogActions}><button className={buttonClass({ variant: "primary" })} type="button" onClick={() => { if (draft.recovery?.baseRevision !== (revision ?? null)) setConflict(true); draft.restore(); }}>Restore draft</button><button className={buttonClass({ variant: "secondary" })} type="button" onClick={draft.discard}>Discard saved draft</button></div>
         </section>}
-        {draft.storageFailed && <div className={draftStyles.notice} role="status"><strong>Draft recovery is limited</strong><p>Your unsent changes can be recovered while you stay in this app. Reloading or closing this tab may lose them.</p></div>}
+        {draft.storageFailed && <div className={draftNotice} role="status"><strong>Draft recovery is limited</strong><p>Your unsent changes can be recovered while you stay in this app. Reloading or closing this tab may lose them.</p></div>}
         {needsLatest && casePath && <DraftConflictRecovery casePath={casePath} baseRevision={expectedRevision} input={input} onContinue={latest => { draft.acceptLatest(latest.input, latest.number); setConflict(false); setError(""); setPreview(null); }} />}
         <fieldset disabled={isPending} className={styles.fields}>
           <section className={styles.section} aria-labelledby={`${fieldId}-context`}>
@@ -222,14 +261,17 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
               {expectedRevision !== undefined && <span className={styles.revision}>Draft · revision {expectedRevision + 1}</span>}
             </div>
             <div className={styles.fieldGrid}>
-              <label className={`${styles.field} ${styles.wide}`}>Campaign title (required)
-                <input required minLength={3} maxLength={160} value={input.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Spring card launch" />
+              <label className={cn(styles.field, styles.wide)} htmlFor={`${fieldId}-title`}>Campaign title (required)
+                <input id={`${fieldId}-title`} maxLength={160} value={input.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Spring card launch" aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? `${fieldId}-title-error` : undefined} />
+                <FieldError id={`${fieldId}-title-error`} message={fieldErrors.title} />
               </label>
-              <label className={styles.field}>Publisher or partner (required)
-                <input required minLength={2} maxLength={100} value={input.publisher} onChange={(event) => update("publisher", event.target.value)} placeholder="e.g. ClearPath Marketing" />
+              <label className={styles.field} htmlFor={`${fieldId}-publisher`}>Publisher or partner (required)
+                <input id={`${fieldId}-publisher`} maxLength={100} value={input.publisher} onChange={(event) => update("publisher", event.target.value)} placeholder="e.g. ClearPath Marketing" aria-invalid={Boolean(fieldErrors.publisher)} aria-describedby={fieldErrors.publisher ? `${fieldId}-publisher-error` : undefined} />
+                <FieldError id={`${fieldId}-publisher-error`} message={fieldErrors.publisher} />
               </label>
-              <label className={styles.field}>Target launch date (required)
-                <input type="date" required value={input.launchDate} onChange={(event) => update("launchDate", event.target.value)} />
+              <label className={styles.field} htmlFor={`${fieldId}-launchDate`}>Target launch date (required)
+                <input id={`${fieldId}-launchDate`} type="date" value={input.launchDate} onChange={(event) => update("launchDate", event.target.value)} aria-invalid={Boolean(fieldErrors.launchDate)} aria-describedby={fieldErrors.launchDate ? `${fieldId}-launchDate-error` : undefined} />
+                <FieldError id={`${fieldId}-launchDate-error`} message={fieldErrors.launchDate} />
               </label>
               <div className={styles.field}><label htmlFor={`${fieldId}-product`}>Product</label>
                 <CustomSelect id={`${fieldId}-product`} label="Product" value={input.productId} options={productIds.map((product) => ({ value: product, label: productLabels[product] }))} onChange={(value) => changeProduct(value as ProductId)} disabled={isPending} />
@@ -240,10 +282,11 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
               <div className={styles.field}><label htmlFor={`${fieldId}-format`}>Asset format</label>
                 <CustomSelect id={`${fieldId}-format`} label="Asset format" value={input.format} options={assetFormats.map((format) => ({ value: format, label: formatLabels[format] }))} onChange={(value) => changeFormat(value as AssetFormat)} disabled={isPending} />
               </div>
-              <div className={styles.field}><label htmlFor={`${fieldId}-complete`}>Copy provided (required)</label>
-                <CustomSelect id={`${fieldId}-complete`} label="Copy provided (required)" value={input.completeAsset === null ? "" : input.completeAsset ? "complete" : "excerpt"} options={[{ value: "", label: "Choose completeness", disabled: true }, { value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} disabled={isPending} />
+              <div className={styles.field}><label htmlFor={`${fieldId}-completeAsset`}>Copy provided (required)</label>
+                <CustomSelect id={`${fieldId}-completeAsset`} label="Copy provided (required)" value={input.completeAsset === null ? "" : input.completeAsset ? "complete" : "excerpt"} options={[{ value: "", label: "Choose completeness", disabled: true }, { value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} disabled={isPending} invalid={Boolean(fieldErrors.completeAsset)} describedBy={fieldErrors.completeAsset ? `${fieldId}-completeAsset-error` : undefined} />
+                <FieldError id={`${fieldId}-completeAsset-error`} message={fieldErrors.completeAsset} />
               </div>
-              {input.format === "banner" && <div className={`${styles.field} ${styles.wide}`}><label htmlFor={`${fieldId}-application`}>Does the banner link to an application?</label>
+              {input.format === "banner" && <div className={cn(styles.field, styles.wide)}><label htmlFor={`${fieldId}-application`}>Does the banner link to an application?</label>
                 <CustomSelect id={`${fieldId}-application`} label="Does the banner link to an application?" value={input.linksToApplication === null ? "" : String(input.linksToApplication)} options={[{ value: "", label: "Unknown" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }]} onChange={(value) => update("linksToApplication", value === "" ? null : value === "true")} disabled={isPending} />
               </div>}
             </div>
@@ -251,10 +294,11 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
           </section>
           <section className={styles.section} aria-labelledby={`${fieldId}-copy-heading`}>
             <div className={styles.sectionHeading}><div><h2 id={`${fieldId}-copy-heading`}>Copy and evidence</h2><p>Include the exact wording customers will see, with disclosures.</p></div><DashboardIcon name="file-lines" size={19} /></div>
-            <label className={styles.field}><span className={styles.fieldLabel}>Marketing copy (required) <small aria-hidden="true">{input.content.length.toLocaleString()} / 20,000</small></span>
-              <textarea className={styles.copyInput} required minLength={10} maxLength={20000} rows={6} value={input.content} onChange={(event) => update("content", event.target.value)} placeholder="Paste the marketing copy here…" />
+            <label className={styles.field} htmlFor={`${fieldId}-content`}><span className={styles.fieldLabel}>Marketing copy (required) <small aria-hidden="true">{input.content.length.toLocaleString()} / 20,000</small></span>
+              <textarea id={`${fieldId}-content`} className={styles.copyInput} maxLength={20000} rows={6} value={input.content} onChange={(event) => update("content", event.target.value)} placeholder="Paste the marketing copy here…" aria-invalid={Boolean(fieldErrors.content)} aria-describedby={fieldErrors.content ? `${fieldId}-content-error` : undefined} />
+              <FieldError id={`${fieldId}-content-error`} message={fieldErrors.content} />
             </label>
-            <label className={`${styles.field} ${styles.evidenceField}`}><span className={styles.fieldLabel}>Supporting evidence <small>Optional</small></span>
+            <label className={cn(styles.field, styles.evidenceField)}><span className={styles.fieldLabel}>Supporting evidence <small>Optional</small></span>
               <textarea maxLength={4000} rows={3} value={input.substantiation} onChange={(event) => update("substantiation", event.target.value)} placeholder="Add source details or supporting context for claims that need human review." />
             </label>
           </section>
@@ -264,9 +308,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
         <section className={styles.checkPanel} aria-labelledby={`${fieldId}-check`} aria-busy={pending === "analyze"}>
           <div className={styles.checkHeading}><span className={styles.checkIcon}><DashboardIcon name="list-check" size={18} /></span><h2 id={`${fieldId}-check`}>Self-check</h2></div>
           <p className={styles.checkIntro}>Check your draft for missing information and potential issues before review.</p>
-          <button className={`button secondary ${styles.checkButton}`} type="button" disabled={isPending} onClick={(event) => {
-            if (event.currentTarget.form?.reportValidity()) void run("analyze");
-          }}><DashboardIcon name="list-check" size={15} />{pending === "analyze" ? "Running checks…" : preview ? "Run checks again" : "Run checks"}</button>
+          <button className={buttonClass({ variant: "secondary", className: styles.checkButton })} type="button" disabled={isPending} onClick={() => void run("analyze")}><DashboardIcon name="list-check" size={15} />{pending === "analyze" ? "Running checks…" : preview ? "Run checks again" : "Run checks"}</button>
           {errorTarget === "analyze" && error && <div className={styles.checkError}><ErrorMessage message={error} /></div>}
           {!preview && <div className={styles.checkEmpty} role="status">
             {pending === "analyze" ? <><p>Checking your current draft…</p><div className={styles.checkSkeleton} aria-hidden="true">{Array.from({ length: 3 }, (_, index) => <span key={index} className={styles.skeleton} />)}</div></> : <><span className={styles.emptyDot} /><p>{hasChecked ? "Run checks again to see findings for the current draft." : "No checks run yet. Findings will appear here."}</p></>}
@@ -292,18 +334,22 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
         <div className={styles.scopeNote}><DashboardIcon name="circle-info" size={16} /><p>Checks cover submitted text. Visual placement and presentation require separate review.</p></div>
       </aside>
       <div className={styles.formFooter}>
-        {draft.dirty && !draft.storageFailed && <p className={draftStyles.status} role="status">{draft.restored ? "Draft restored. " : ""}Unsent changes are kept in this tab until it is closed.</p>}
+        {draft.dirty && !draft.storageFailed && <p className={draftStatus} role="status">{draft.restored ? "Draft restored. " : ""}Unsent changes are kept in this tab until it is closed.</p>}
         {cannotRevise && <p className={styles.roleNote}>Switch to Submitter to submit this revision.</p>}
         {errorTarget === "save" && <ErrorMessage message={error} />}
         <div className={styles.submitRow}>
-          <button className="button ghost" type="button" disabled={Boolean(pending)} onClick={() => draft.requestLeave(onCancel)}>Cancel</button>
-          <button className="button primary" type="submit" disabled={isPending || cannotRevise || needsLatest}>
+          <Button variant="ghost" disabled={Boolean(pending)} onClick={() => draft.requestLeave(onCancel)}>Cancel</Button>
+          <button className={buttonClass({ variant: "primary" })} type="submit" disabled={isPending || cannotRevise || needsLatest}>
             {pending === "save" ? "Submitting…" : revision === undefined ? "Submit for review" : "Submit new revision"}<DashboardIcon name="arrow-right" size={14} />
           </button>
         </div>
       </div>
     </form>
   );
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return message ? <p className={styles.fieldError} id={id}>{message}</p> : null;
 }
 
 const fieldNames: Record<keyof SubmissionInput, string> = {

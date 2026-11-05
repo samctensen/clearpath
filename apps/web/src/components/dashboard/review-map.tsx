@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { statusLabels, type CaseStatus, type QueueCohortItem } from "@clearpath/contracts";
 import { buildReviewMap } from "@/lib/review-map";
 import { DashboardIcon } from "./dashboard-icon";
-import styles from "./review-map.module.css";
+import { styles } from "./review-map.styles";
 
 type ReviewMapProps = {
   cases: QueueCohortItem[];
@@ -158,8 +158,8 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
                   selected !== "all" && selected !== group.status && emphasizedStatus !== group.status ? styles.branchDim : "",
                 ].join(" ")}
               >
-                <path d={branchPath(index)} className={styles.branchHalo} vectorEffect="non-scaling-stroke" />
-                <path d={branchPath(index)} className={styles.branch} vectorEffect="non-scaling-stroke" />
+                <path d={branchPath(index)} className={`map-halo ${styles.branchHalo}`} vectorEffect="non-scaling-stroke" />
+                <path d={branchPath(index)} className={`map-branch ${styles.branch}`} vectorEffect="non-scaling-stroke" />
                 {selected === group.status && group.count > 0 && (
                   <path d={branchPath(index)} className={styles.branchTrace} pathLength={1} vectorEffect="non-scaling-stroke" />
                 )}
@@ -190,7 +190,7 @@ export function ReviewMap({ cases, selected, onSelect, preferredCaseId }: Review
                     dimmed ? styles.rowDim : "",
                   ].join(" ")}
                 >
-                  <div className={`${styles.track} ${group.count === 0 ? styles.trackEmpty : ""}`}>
+                  <div className={styles.track}>
                     {group.visible.map((item) => (
                       <button
                         key={item.id}

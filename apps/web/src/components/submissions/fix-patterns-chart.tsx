@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import { fixReasonDefinitions, type FixPattern, type FixPatternSource, type FixPatternSummary } from "@clearpath/contracts";
 import { usePendingHeight } from "@/lib/use-pending-height";
-import styles from "./fix-patterns-chart.module.css";
+import { cn } from "../ui";
+import { fillTexture, markShape, reasonColor, styles } from "./fix-patterns-chart.styles";
 
 export const fixPatternSourceLabels: Record<FixPatternSource, string> = {
   missing_information: "Needs information",
@@ -61,7 +62,7 @@ export function FixPatternsChart({ summary, selectedReason, loading, error, onSe
       <span className={styles.scope}>Current revisions</span>
     </header>
 
-    {loading ? <div className={styles.loading} role="status">
+    {loading ? <div role="status">
       <span className={styles.loadingLabel}>Loading fix patterns…</span>
       <div className={styles.skeletonRows} aria-hidden="true">{[84, 68, 48, 36].map(width => <div className={styles.skeletonRow} key={width}><span /><i style={{ width: `${width}%` }} /><b /></div>)}</div>
     </div> : error || unavailable ? <div className={styles.state} role="alert">
@@ -94,7 +95,7 @@ export function FixPatternsChart({ summary, selectedReason, loading, error, onSe
       {(hasChart || selected) && <div className={styles.context} data-selected={Boolean(selected)}>
         <div className={styles.explanation} aria-live="polite" aria-atomic="true">
           {selected ? <>
-            <div className={styles.contextHeading}><span className={styles.sourceMark} data-source={selected.source} aria-hidden="true" /><strong>{selected.label}</strong><span>{sourceLabels[selected.source]}</span></div>
+            <div className={styles.contextHeading}><span className={cn(styles.sourceMark, markShape[selected.source])} style={{ "--reason-color": reasonColor[selected.source] } as CSSProperties} aria-hidden="true" /><strong>{selected.label}</strong><span>{sourceLabels[selected.source]}</span></div>
             <p>{selected.count === 0 ? "No submissions currently match this reason in your search and product selection. Clear the reason to see other submissions needing input." : <>{selected.description}{selected.source !== "unavailable" && " See the recorded text in each submission below."}</>}</p>
           </> : <>
             <strong>Select a reason to filter the submissions below.</strong>
@@ -115,11 +116,11 @@ function ReasonBand({ reason, selected, scaleMax, ticks, onSelect }: {
   onSelect(): void;
 }) {
   return <li className={styles.reason}>
-    <button type="button" className={styles.band} data-source={reason.source} data-zero={reason.count === 0} aria-pressed={selected} aria-label={`${reason.label}, ${sourceLabels[reason.source]}, ${submissions(reason.count)}. ${selected ? "Clear reason filter" : "Filter submissions by this reason"}.`} onClick={onSelect}>
-      <span className={styles.category}><span className={styles.label}>{reason.label}</span><span className={styles.source}><span className={styles.sourceMark} aria-hidden="true" />{sourceLabels[reason.source]}</span></span>
+    <button type="button" className={styles.band} style={{ "--reason-color": reasonColor[reason.source] } as CSSProperties} data-source={reason.source} data-zero={reason.count === 0} aria-pressed={selected} aria-label={`${reason.label}, ${sourceLabels[reason.source]}, ${submissions(reason.count)}. ${selected ? "Clear reason filter" : "Filter submissions by this reason"}.`} onClick={onSelect}>
+      <span className={styles.category}><span className={styles.label}>{reason.label}</span><span className={styles.source}><span className={cn(styles.sourceMark, markShape[reason.source])} aria-hidden="true" />{sourceLabels[reason.source]}</span></span>
       <span className={styles.plot} aria-hidden="true">
         <span className={styles.grid}>{ticks.map(tick => <i key={tick} style={{ left: `${tick / scaleMax * 100}%` }} />)}</span>
-        <span className={styles.fill} style={{ width: `${reason.count / scaleMax * 100}%` }}><span className={styles.cap} /></span>
+        <span className={cn(styles.fill, fillTexture[reason.source])} style={{ width: `${reason.count / scaleMax * 100}%` }}><span className={styles.cap} /></span>
       </span>
       <strong className={styles.count} aria-hidden="true">{reason.count}</strong>
     </button>

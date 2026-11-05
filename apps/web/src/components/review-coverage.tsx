@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import type { Analysis, CheckResult } from "@clearpath/contracts";
-import styles from "./case-review.module.css";
+import { cn } from "./ui";
+import { styles } from "./case-review.styles";
 
 const coverageStates = [
   { status: "finding", label: "findings", singular: "finding", outcome: "Finding", className: styles.coverageFinding },
@@ -39,7 +40,7 @@ export function ReviewCoverage({ analysis, onShowCheck }: { analysis: Analysis; 
               <button
                 key={check.ruleId}
                 type="button"
-                className={`${styles.meterSegment} ${outcome.className}${active === index ? ` ${styles.meterSegmentActive}` : ""}`}
+                className={cn(styles.meterSegment, outcome.className, active === index && styles.meterSegmentActive)}
                 aria-controls={`review-check-${encodeURIComponent(check.ruleId)}`}
                 aria-label={`Show evidence for ${check.title}: ${outcome.outcome}`}
                 onClick={() => onShowCheck(check.ruleId)}
@@ -56,7 +57,7 @@ export function ReviewCoverage({ analysis, onShowCheck }: { analysis: Analysis; 
               style={{ left: `clamp(var(--tip-half), ${((active! + 0.5) / checks.length) * 100}%, calc(100% - var(--tip-half)))` }}
             >
               <span className={styles.meterTipName}>{inspected.title}</span>
-              <span className={`${styles.coverageOutcome} ${outcomeOf(inspected).className}`}><span aria-hidden="true" />{outcomeOf(inspected).outcome}</span>
+              <span className={cn(styles.coverageOutcome, outcomeOf(inspected).className)}><span aria-hidden="true" />{outcomeOf(inspected).outcome}</span>
             </div>
           )}
         </div>

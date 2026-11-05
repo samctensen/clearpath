@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import type { DemoRole } from "@clearpath/contracts";
 import { DashboardIcon } from "./dashboard-icon";
-import styles from "./dashboard-shell.module.css";
+import { styles } from "./dashboard-shell.styles";
 
 const roles: { value: DemoRole; label: string }[] = [
   { value: "reviewer", label: "Reviewer" },

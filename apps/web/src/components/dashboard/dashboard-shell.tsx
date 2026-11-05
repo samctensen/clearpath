@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { DemoRole } from "@clearpath/contracts";
 import { usePathname } from "next/navigation";
 import { DashboardIcon } from "./dashboard-icon";
-import styles from "./dashboard-shell.module.css";
+import { styles } from "./dashboard-shell.styles";
 
 const navItems = [
   { href: "/", label: "Review desk", icon: "grid-2" },

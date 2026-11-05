@@ -6,8 +6,8 @@ import { productLabels, type CaseDetail, type DemoRole } from "@clearpath/contra
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApiMutation } from "@/lib/use-api-mutation";
 import { DashboardIcon } from "./dashboard-icon";
-import { CaseStatusBadge } from "../ui";
-import styles from "./queue-action-dialog.module.css";
+import { CaseStatusBadge, buttonClass } from "../ui";
+import { styles } from "./queue-action-dialog.styles";
 
 export type QueueAction = "approve" | "request_changes" | "delete";
 
@@ -134,12 +134,12 @@ export function QueueActionDialog({ caseId, title, action, role, currentRole, ex
           {!roleAllowed && <p className={styles.error} role="alert">Your demo role changed. Close this dialog and reopen the action for your current role.</p>}
           {!statusAllowed && <p className={styles.error} role="alert">{action === "delete" ? "Approved copy cannot be deleted. Revise the submission first." : "This revision already has a decision. Open the review to see its latest status."}</p>}
         </> : <p className={styles.scope}>{title}</p>}
-        {error && <div className={styles.error} role="alert"><p>{error.message}</p>{(!detail || error.conflict) && <button type="button" className="button secondary small" disabled={pending} onClick={() => setAttempt(value => value + 1)}>{error.conflict ? "Reload current revision" : "Try again"}</button>}</div>}
+        {error && <div className={styles.error} role="alert"><p>{error.message}</p>{(!detail || error.conflict) && <button type="button" className={buttonClass({ variant: "secondary", size: "small" })} disabled={pending} onClick={() => setAttempt(value => value + 1)}>{error.conflict ? "Reload current revision" : "Try again"}</button>}</div>}
         <p className="sr-only" role="status">{pending ? "Saving action. Please wait." : ""}</p>
       </div>
       <footer className={styles.footer}>
-        <button type="button" className="button secondary" disabled={pending} onClick={close}>Cancel</button>
-        {approvalNeedsReview ? <Link href={`${path}#decision`} className="button primary" aria-disabled={pending || undefined} tabIndex={pending ? -1 : undefined} onClick={event => { if (saving.current) event.preventDefault(); }}>Continue review<DashboardIcon name="arrow-right" size={14} /></Link> : <button type="submit" className={`button ${action === "delete" ? "danger" : "primary"}`} disabled={!canSubmit}>{pending ? "Saving…" : copy.confirm}</button>}
+        <button type="button" className={buttonClass({ variant: "secondary" })} disabled={pending} onClick={close}>Cancel</button>
+        {approvalNeedsReview ? <Link href={`${path}#decision`} className={buttonClass({ variant: "primary" })} aria-disabled={pending || undefined} tabIndex={pending ? -1 : undefined} onClick={event => { if (saving.current) event.preventDefault(); }}>Continue review<DashboardIcon name="arrow-right" size={14} /></Link> : <button type="submit" className={buttonClass({ variant: action === "delete" ? "danger" : "primary" })} disabled={!canSubmit}>{pending ? "Saving…" : copy.confirm}</button>}
       </footer>
     </form>
   </dialog>;

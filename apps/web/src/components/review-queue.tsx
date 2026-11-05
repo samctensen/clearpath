@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import Link from "next/link";
 import { fixReasonDefinitions, formatLabels, productIds, productLabels, statusLabels, type CaseStatus, type ProductId, type DemoRole, type SubmitterView } from "@clearpath/contracts";
 import { useDashboard } from "@/lib/use-dashboard";
@@ -16,13 +16,13 @@ import { CustomSelect } from "./ui/custom-select";
 import { HeaderSearch, PageHeader } from "./ui/page-header";
 import { QueueRowActions } from "./dashboard/queue-row-actions";
 import { QueueActionDialog, type QueueAction } from "./dashboard/queue-action-dialog";
-import actionStyles from "./dashboard/queue-row-actions.module.css";
-import styles from "./dashboard/review-dashboard.module.css";
+import { styles as actionStyles } from "./dashboard/queue-row-actions.styles";
+import { formatDate, Tooltip } from "./ui";
+import { styles } from "./dashboard/review-dashboard.styles";
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const statusColor: Record<CaseStatus, string> = {
-  ready_for_review: "var(--dash-ready)", needs_information: "var(--dash-info)",
-  changes_requested: "var(--dash-waiting)", approved: "var(--dash-approved)",
+  ready_for_review: "var(--color-ready)", needs_information: "var(--color-info)",
+  changes_requested: "var(--color-waiting)", approved: "var(--color-approved)",
 };
 const productOptions = [{ value: "all", label: "All products" }, ...productIds.map(value => ({ value, label: productLabels[value] }))];
 const statusOptions = [{ value: "all", label: "All statuses" }, ...dashboardStatuses.map(value => ({ value, label: statusLabels[value] }))];
@@ -30,11 +30,21 @@ const statusOptions = [{ value: "all", label: "All statuses" }, ...dashboardStat
 function targetLabel(value: string) {
   const date = new Date(value);
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
-    ? dateFormat.format(date) : "Date unavailable";
+    ? formatDate(value) : "Date unavailable";
+}
+
+/** Explains the two counts the copy-checks cell shows, in the queue footer's voice. */
+function checksSummary(findings: number, unknowns: number) {
+  const flagged = findings === 0
+    ? "No automated check flagged a concern in this revision."
+    : `${findings} automated ${findings === 1 ? "check" : "checks"} flagged a concern in this revision.`;
+  const missing = unknowns === 0 ? ""
+    : ` ${unknowns} ${unknowns === 1 ? "check was" : "checks were"} unable to evaluate without more context.`;
+  return `${flagged}${missing} Automated checks only, not all review concerns.`;
 }
 
 function Status({ status, role }: { status: CaseStatus; role: DemoRole }) {
-  return <span className={styles.status} data-status={status}><i style={{ background: statusColor[status] }} aria-hidden="true" />{role === "submitter" && status === "ready_for_review" ? "Awaiting review" : statusLabels[status]}</span>;
+  return <span className={styles.status} style={{ "--status-color": statusColor[status] } as CSSProperties} data-status={status}><i aria-hidden="true" />{role === "submitter" && status === "ready_for_review" ? "Awaiting review" : statusLabels[status]}</span>;
 }
 
 export function ReviewQueue() {
@@ -215,9 +225,9 @@ function RoleQueue({ role }: { role: DemoRole }) {
         {loading || rows.length ? <div className={styles.tableWrap}><table className={styles.table}>
           <thead><tr><th scope="col">Campaign / publisher</th><th scope="col">Product / format</th><th scope="col">{role === "reviewer" ? "Copy checks" : "Next step"}</th><th scope="col" aria-sort={filters.sort === "asc" ? "ascending" : "descending"}><span className={styles.mobileDateLabel}>Target date</span><button type="button" onClick={toggleSort}>Target date<Icon name={filters.sort === "asc" ? "arrow-up" : "arrow-down"} size={10} /></button></th><th scope="col">Status</th><th scope="col" className={styles.rowActions}><span className="sr-only">Actions</span></th></tr></thead>
           {loading ? <QueueRowsLoading /> : <tbody>{rows.map(item => <tr key={item.id} data-queue-case-id={item.id} className={styles.queueRow}>
-            <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
+            <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
-            {role === "reviewer" ? <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unable to evaluate</small>}</div></td> : <td data-label="Next step" className={styles.nextStep}>
+            {role === "reviewer" ? <td data-label="Copy checks"><Tooltip label={checksSummary(item.findings, item.unknowns)}><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unable to evaluate</small>}</div></Tooltip></td> : <td data-label="Next step" className={styles.nextStep}>
               {item.status === "changes_requested" || item.status === "needs_information" ? <>
                 <Link href={`/cases/${encodeURIComponent(item.id)}?intent=revise`} className={styles.nextAction} aria-label={`${item.status === "changes_requested" ? "Revise submission" : "Add information"} for ${item.title}`}>{item.status === "changes_requested" ? "Revise submission" : "Add information"}</Link>
                 {(item.guidance?.kind === "reviewer_feedback" || item.guidance?.kind === "missing_information") && item.guidance.text.trim()

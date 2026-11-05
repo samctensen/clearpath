@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { DashboardIcon } from "../dashboard/dashboard-icon";
-import styles from "./custom-select.module.css";
+import { cn } from "./cn";
 
 type SelectOption = { value: string; label: string; disabled?: boolean; description?: string };
 type CustomSelectProps = {
@@ -14,10 +14,12 @@ type CustomSelectProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  invalid?: boolean;
+  describedBy?: string;
 };
 
 /** Select-only combobox: focus stays on the trigger while its listbox is open. */
-export function CustomSelect({ id, label, value, options, onChange, disabled = false, className }: CustomSelectProps) {
+export function CustomSelect({ id, label, value, options, onChange, disabled = false, className, invalid = false, describedBy }: CustomSelectProps) {
   const generatedId = useId();
   const triggerId = id ?? `select-${generatedId}`;
   const listId = `${triggerId}-options`;
@@ -163,7 +165,7 @@ export function CustomSelect({ id, label, value, options, onChange, disabled = f
     setOpen(true);
   };
 
-  return <div className={[styles.root, className].filter(Boolean).join(" ")}>
+  return <div className={cn("min-w-0", className)}>
     <button
       ref={triggerRef}
       id={triggerId}
@@ -174,31 +176,33 @@ export function CustomSelect({ id, label, value, options, onChange, disabled = f
       aria-expanded={expanded}
       aria-controls={expanded ? listId : undefined}
       aria-activedescendant={expanded && active >= 0 ? `${listId}-${active}` : undefined}
+      aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
       disabled={isDisabled}
-      className={styles.trigger}
+      className="group relative flex items-center w-full min-w-0 min-h-[36px] max-[650px]:min-h-[44px] pl-3 pr-[38px] py-2 rounded-lg border border-line bg-raised text-ink text-[13px] max-[650px]:text-base font-medium leading-[1.4] text-left shadow-none transition-[border-color,background-color] duration-[140ms] ease-out hover:not-disabled:border-[#484848] focus-visible:outline-none focus-visible:border-accent aria-[invalid=true]:border-danger aria-expanded:border-accent aria-expanded:outline-2 aria-expanded:outline-[color-mix(in_srgb,var(--color-accent)_23%,transparent)] aria-expanded:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
       onClick={() => expanded ? closeList() : openList()}
       onKeyDown={onKeyDown}
       onBlur={event => {
         if (!listRef.current?.contains(event.relatedTarget as Node | null)) closeList();
       }}
     >
-      <span className={styles.value}>{selected?.label ?? (value || "Choose an option")}</span>
-      <DashboardIcon name="chevron-down" size={12} className={styles.chevron} />
+      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{selected?.label ?? (value || "Choose an option")}</span>
+      <DashboardIcon name="chevron-down" size={12} className="absolute top-1/2 right-[13px] -translate-y-1/2 text-muted transition-transform duration-[140ms] ease-out group-aria-expanded:rotate-180" />
     </button>
-    {expanded && createPortal(<ul ref={listRef} id={listId} role="listbox" aria-label={label} className={styles.popup} style={position}>
+    {expanded && createPortal(<ul ref={listRef} id={listId} role="listbox" aria-label={label} className="fixed z-[1000] m-0 p-[5px] box-border overflow-y-auto overscroll-contain list-none rounded-[10px] border border-[#363636] bg-raised text-ink font-[inherit] shadow-[0_16px_40px_#0009,0_2px_8px_#0005] [scrollbar-width:thin] [scrollbar-color:#484848_transparent]" style={position}>
       {options.map((option, index) => <li
         id={`${listId}-${index}`}
         key={option.value}
         role="option"
         aria-selected={option.value === value}
         aria-disabled={option.disabled || undefined}
-        className={`${styles.option} ${index === active ? styles.active : ""}`}
+        className={cn("flex items-center gap-3 min-h-[38px] max-[650px]:min-h-[44px] px-2.5 py-[9px] rounded-md border border-transparent text-[13px] max-[650px]:text-[15px] leading-[1.4] cursor-pointer aria-selected:text-[#c7b0f7] aria-disabled:opacity-40 aria-disabled:cursor-not-allowed", index === active && "border-[#383838] bg-[#252525]")}
         onPointerDown={event => event.preventDefault()}
         onPointerMove={() => { if (!option.disabled) setActiveIndex(index); }}
         onClick={() => choose(index)}
       >
-        <span className={styles.optionText}><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>
-        {option.value === value && <span className={styles.selectedMark} aria-hidden="true">✓</span>}
+        <span className="flex-1 min-w-0 [overflow-wrap:anywhere] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11.5px] max-[650px]:[&_small]:text-xs [&_small]:font-normal [&_small]:leading-[1.45]"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>
+        {option.value === value && <span className="flex-none text-accent text-[14px]" aria-hidden="true">✓</span>}
       </li>)}
     </ul>, document.body)}
   </div>;
