@@ -27,22 +27,22 @@ const rules = [
 export const fixReasonDefinitions: readonly Omit<FixPattern, "count">[] = [
   ...rules.map(([id, label]) => ({
     id: `missing:${id}`, label,
-    description: `A current automated check needs more information about ${label.toLowerCase()}. Open the submission to review the recorded gap.`,
+    description: `An automated check couldn’t evaluate ${label.toLowerCase()} on the current revision. This isn’t a confirmed error; the submission shows what context is missing.`,
     source: "missing_information" as const,
   })),
   ...rules.map(([id, label]) => ({
     id: `request:${id}`, label,
-    description: `A reviewer requested a correction to ${label.toLowerCase()} on the current revision. Open the submission for the recorded request.`,
+    description: `A reviewer asked for a correction to ${label.toLowerCase()} on the current revision. The request is recorded on the submission.`,
     source: "reviewer_request" as const,
   })),
   {
-    id: "other_feedback", label: "Other reviewer feedback",
-    description: "The current request contains a reviewer note, manual concern, or older feedback without a classified check. Open the submission to read it.",
+    id: "other_feedback", label: "Reviewer notes",
+    description: "Reviewer requests that aren’t tied to a specific check, including manual concerns and older feedback that was never classified.",
     source: "reviewer_request",
   },
   {
     id: "details_unavailable", label: "Details unavailable",
-    description: "This submission needs attention, but its current reason is missing or cannot be classified reliably. Open the submission to inspect the available details.",
+    description: "These submissions need attention, but the current reason is missing or can’t be classified reliably. Open one to see what’s recorded.",
     source: "unavailable",
   },
 ];

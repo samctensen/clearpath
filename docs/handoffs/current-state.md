@@ -72,3 +72,12 @@ Reason counts and table filtering share one SQL membership definition. Counts ar
 Three modular implementation lanes and independent review completed. One malformed-check fallback issue was fixed and re-reviewed. Final verification: 222 tests passed, frontend/backend type checks and production build passed. Local browser covered selection, paging, same-page case return, selected zero-results after product filtering, mobile (390px without horizontal overflow), keyboard activation, clearing and role switch. No shared demo data was mutated/reset. Temporary viewport and original Reviewer role were restored.
 
 Design and implementation notes: docs/superpowers/specs/2026-11-04-fix-patterns-design.md and docs/superpowers/plans/2026-11-04-fix-patterns.md. No hosted deployment was performed; main synchronization is not deployment. The previous migration005 deployment requirement still applies. Local .claude/ stays untracked.
+
+
+## Fix-pattern actionability follow-through — 2026-11-04
+
+After the thesis review Sam authorized Claude delegation. Actual Claude Sonnet implemented the queue UI and a scoped refinement; Claude Opus independently critiqued the fictional screenshot/brief. A backend subagent implemented reason-specific guidance, root completed its interrupted count/test work, and a fresh code reviewer passed the combined diff.
+
+Queue attention rows now show recorded text and direct Add information / Revise submission links into the existing editor. Selecting a reason selects its own current recorded check/request, not an unrelated first check. Multiple readable sources are counted and disclosed; legacy prose remains unchanged apart from bounded display truncation. Needs information source labels match the status; Reviewer notes retains the manual/unclassified fallback without inventing categories. Backend commit a6b6cd8.
+
+225 tests, type checks and production build passed. Desktop direct-editor and scrolled return checks passed with no data mutation. Browser connection dropped before final selected-reason/mobile recapture; that is a verification limit, not a claimed completed browser pass. Full details and Claude session IDs: docs/superpowers/plans/2026-11-04-fix-patterns-actionability.md. No deployment occurred; canonical main is the running checkout, .claude remains local-only.

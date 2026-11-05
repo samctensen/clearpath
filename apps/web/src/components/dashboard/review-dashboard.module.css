@@ -176,7 +176,13 @@
 .nextStep { max-width: 290px; }
 .nextStep > span { display: block; color: #ddd; font-size: 12px; }
 .nextStep small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 290px; line-height: 1.5; }
+.nextStep .nextAction { position: relative; z-index: 2; display: inline-flex; align-items: center; min-height: 24px; color: var(--dash-accent); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.nextStep .nextAction:hover { color: #e0cdff; }
+.nextStep .nextAction:focus-visible { outline: 2px solid var(--dash-accent); outline-offset: 2px; border-radius: 3px; }
+.nextStep .guidanceText { -webkit-line-clamp: 3; overflow-wrap: anywhere; color: #c9c9c9; }
+.nextStep .guidanceMeta { font-size: 11px; }
 @media (max-width: 720px) {
+  .nextStep .nextAction { min-height: 44px; }
   .submissionViews { display: block; padding: 0 14px 12px; }
   .submissionViews p { margin-top: 8px; }
   .viewTabs { gap: 4px; }

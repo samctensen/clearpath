@@ -9,7 +9,7 @@ import { emptyQueueRecovery, queueReturnScroll, readQueueContext, writeQueueCont
 import { dashboardStatuses, dashboardFilterStorageKey, defaultDashboardFilters, firstQueuePage, parseDashboardFilters, type DashboardFilters, type DashboardStatus, type QueuePosition } from "@/lib/dashboard";
 import { useDemoRole } from "./workspace";
 import { DashboardIcon as Icon } from "./dashboard/dashboard-icon";
-import { FixPatternsChart } from "./submissions/fix-patterns-chart";
+import { FixPatternsChart, fixPatternSourceLabels } from "./submissions/fix-patterns-chart";
 import { ReviewMap } from "./dashboard/review-map";
 import { QueueRowsLoading, ReviewMapLoading, UpNextLoading } from "./dashboard/dashboard-loading";
 import { CustomSelect } from "./ui/custom-select";
@@ -205,7 +205,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
         </div>
         {selectedReason && <div className={styles.reasonFilter}>
           <span>Showing</span><button type="button" onClick={() => selectReason(null)} aria-label={`Clear reason filter: ${selectedReason.label}`}>
-            <span>{selectedReason.source === "missing_information" ? "Missing information" : selectedReason.source === "reviewer_request" ? "Reviewer request" : "Details unavailable"}{selectedReason.source !== "unavailable" && <> · {selectedReason.label}</>}</span>
+            <span>{selectedReason.source === "unavailable" ? selectedReason.label : <>{fixPatternSourceLabels[selectedReason.source]} · {selectedReason.label}</>}</span>
             <span aria-hidden="true">×</span>
           </button>
         </div>}
@@ -218,8 +218,15 @@ function RoleQueue({ role }: { role: DemoRole }) {
             <td><Link href={`/cases/${encodeURIComponent(item.id)}`} className={styles.campaign}><span className={styles.fileMark}><Icon name="file-lines" size={17} /></span><span><strong>{item.title}</strong><small>{item.publisher}<span>·</span>Rev {item.revision}</small></span></Link></td>
             <td data-label="Product"><span className={styles.productName}>{productLabels[item.productId]}</span><small>{formatLabels[item.format]}</small></td>
             {role === "reviewer" ? <td data-label="Copy checks"><div className={styles.checks}>{item.findings > 0 ? <span className={styles.finding}><Icon name="circle-exclamation" size={12} />{item.findings} {item.findings === 1 ? "finding" : "findings"}</span> : <span>0 findings</span>}{item.unknowns > 0 && <small>{item.unknowns} unable to evaluate</small>}</div></td> : <td data-label="Next step" className={styles.nextStep}>
-              <span>{item.status === "changes_requested" ? "Revise copy" : item.status === "needs_information" ? "Add information" : item.status === "ready_for_review" ? "Awaiting human review" : "View approved revision"}</span>
-              <small>{item.guidance?.kind === "awaiting_review" ? <>Revision {item.guidance.revision} submitted {targetLabel(item.guidance.recordedAt.slice(0, 10))}</> : item.guidance?.kind === "reviewer_feedback" ? <>Reviewer feedback on revision {item.guidance.revision}</> : item.guidance?.kind === "missing_information" ? "Automated check needs context" : item.guidance?.kind === "approved_copy" ? <>Approval applies to revision {item.guidance.revision}</> : "Open submission for details"}</small>
+              {item.status === "changes_requested" || item.status === "needs_information" ? <>
+                <Link href={`/cases/${encodeURIComponent(item.id)}?intent=revise`} className={styles.nextAction} aria-label={`${item.status === "changes_requested" ? "Revise submission" : "Add information"} for ${item.title}`}>{item.status === "changes_requested" ? "Revise submission" : "Add information"}</Link>
+                {(item.guidance?.kind === "reviewer_feedback" || item.guidance?.kind === "missing_information") && item.guidance.text.trim()
+                  ? <><small className={styles.guidanceText}>{item.guidance.text}</small><small className={styles.guidanceMeta}>{item.guidance.kind === "reviewer_feedback" ? "Reviewer request" : "Needs information"} · Rev {item.guidance.revision}{item.guidance.itemCount && item.guidance.itemCount > 1 ? ` · ${item.guidance.itemCount} recorded items` : ""}</small></>
+                  : <small>Open submission for details</small>}
+              </> : <>
+                <span>{item.status === "ready_for_review" ? "Awaiting human review" : "View approved revision"}</span>
+                <small>{item.guidance?.kind === "awaiting_review" ? <>Revision {item.guidance.revision} submitted {targetLabel(item.guidance.recordedAt.slice(0, 10))}</> : item.guidance?.kind === "approved_copy" ? <>Approval applies to revision {item.guidance.revision}</> : "Open submission for details"}</small>
+              </>}
             </td>}
             <td data-label="Target date" className={styles.date}>{targetLabel(item.launchDate)}</td>
             <td data-label="Status"><Status status={item.status} role={role} /></td>

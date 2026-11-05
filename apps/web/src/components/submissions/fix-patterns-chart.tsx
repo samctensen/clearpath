@@ -5,11 +5,12 @@ import { fixReasonDefinitions, type FixPattern, type FixPatternSource, type FixP
 import { usePendingHeight } from "@/lib/use-pending-height";
 import styles from "./fix-patterns-chart.module.css";
 
-const sourceLabels: Record<FixPatternSource, string> = {
-  missing_information: "Missing information",
+export const fixPatternSourceLabels: Record<FixPatternSource, string> = {
+  missing_information: "Needs information",
   reviewer_request: "Reviewer request",
   unavailable: "Source unavailable",
 };
+const sourceLabels = fixPatternSourceLabels;
 const reasonOrder = new Map(fixReasonDefinitions.map((reason, index) => [reason.id, index]));
 const initialReasonCount = 4;
 const submissions = (count: number) => `${count} submission${count === 1 ? "" : "s"}`;
@@ -94,10 +95,10 @@ export function FixPatternsChart({ summary, selectedReason, loading, error, onSe
         <div className={styles.explanation} aria-live="polite" aria-atomic="true">
           {selected ? <>
             <div className={styles.contextHeading}><span className={styles.sourceMark} data-source={selected.source} aria-hidden="true" /><strong>{selected.label}</strong><span>{sourceLabels[selected.source]}</span></div>
-            <p>{selected.count === 0 ? "No submissions currently match this reason in your search and product selection. Clear the reason to see other submissions needing input." : selected.description}</p>
+            <p>{selected.count === 0 ? "No submissions currently match this reason in your search and product selection. Clear the reason to see other submissions needing input." : <>{selected.description}{selected.source !== "unavailable" && " See the recorded text in each submission below."}</>}</p>
           </> : <>
-            <strong>Select a reason to focus the submissions below.</strong>
-            <p>Missing information comes from automated checks. Reviewer requests come from recorded feedback.</p>
+            <strong>Select a reason to filter the submissions below.</strong>
+            <p>Needs information comes from checks that need more context. Reviewer requests come from recorded feedback.</p>
           </>}
         </div>
         {selected && <button type="button" className={styles.action} onClick={() => onSelect(null)}>Clear reason</button>}
