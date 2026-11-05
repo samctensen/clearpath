@@ -3,9 +3,22 @@ import { analyze, offers } from "@clearpath/checks";
 import { createTestStore } from "@clearpath/models";
 import { buildSeedPlans, DEFAULT_SEED_CASES } from "../src/seed.ts";
 
+Deno.test("the default seed has 25 cases covering every product and review outcome", () => {
+  const plans = buildSeedPlans(offers, analyze);
+  assert.equal(DEFAULT_SEED_CASES, 25);
+  assert.equal(plans.length, 25);
+  assert.deepEqual(
+    new Set(plans.map((plan) => plan.input.productId)),
+    new Set(["card", "personal_loan", "mortgage", "unknown"]),
+  );
+  assert.deepEqual(
+    new Set(plans.map((plan) => plan.decision?.decision)),
+    new Set([undefined, "approve", "request_changes"]),
+  );
+});
+
 Deno.test("approved seed campaigns agree with their offer and need no dismissals", () => {
   const plans = buildSeedPlans(offers, analyze, 250);
-  assert.equal(buildSeedPlans(offers, analyze).length, DEFAULT_SEED_CASES);
   const approved = plans.filter((plan) => plan.decision?.decision === "approve");
   assert.ok(approved.length > 20);
   for (const plan of approved) {

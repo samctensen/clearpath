@@ -1,11 +1,12 @@
 "use client";
 
 import { DashboardIcon } from "./dashboard/dashboard-icon";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import type { AiReviewContent, AiReviewResponse, DemoRole, ManualFinding, Revision } from "@clearpath/contracts";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
+import { useAiReviewGeneration, useAiReviewGenerationState } from "@/lib/use-ai-review";
 import { useResource } from "@/lib/use-resource";
-import { Button, CheckBadge, ErrorMessage, buttonClass, cn, formatTime, panel, panelCaption, panelHeading } from "./ui";
+import { CheckBadge, ErrorMessage, buttonClass, cn, formatTime, panel, panelCaption, panelHeading } from "./ui";
 import { checkCard, checkCardHeading, checkList, evidenceQuote, suggestion } from "./ui/check";
 import { styles as ai } from "./ai-review.styles";
 
@@ -43,37 +44,19 @@ export function AiReviewPanel({ path, revision, isCurrent, role, pending, findin
 }) {
   const id = useId();
   const resource = useResource<AiReviewResponse>(`${path}/ai-review?revision=${revision.number}`);
-  const [generating, setGenerating] = useState(false);
-  const [failure, setFailure] = useState<{ message: string; conflict: boolean } | null>(null);
+  const generation = useAiReviewGeneration();
+  const generationState = useAiReviewGenerationState(path, revision.number);
   const [promotionMessage, setPromotionMessage] = useState("");
-  const request = useRef<AbortController | null>(null);
   const review = resource.data?.review;
+  const generating = generationState.pending;
+  const failure = !generating && !review && generationState.error ? {
+    message: generationError(generationState.error),
+    conflict: generationState.error instanceof ApiError && generationState.error.status === 409,
+  } : null;
 
-  useEffect(() => () => request.current?.abort(), []);
-
-  async function generate() {
-    if (!isCurrent || pending || request.current || !resource.data?.available || review) return;
-    const controller = new AbortController();
-    request.current = controller;
-    setGenerating(true);
-    setFailure(null);
-    try {
-      const result = await api<AiReviewResponse>(`${path}/ai-review`, {
-        body: { expectedRevision: revision.number },
-        role,
-        signal: controller.signal,
-      });
-      if (!controller.signal.aborted) resource.replace(result);
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        setFailure({ message: generationError(error), conflict: error instanceof ApiError && error.status === 409 });
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        request.current = null;
-        setGenerating(false);
-      }
-    }
+  function generate() {
+    if (!isCurrent || pending || generating || failure?.conflict || !resource.data?.available || review) return;
+    generation.mutate({ path, revision: revision.number, role });
   }
 
   function referenceLabel(referenceId: string) {
@@ -88,25 +71,26 @@ export function AiReviewPanel({ path, revision, isCurrent, role, pending, findin
           <div className={ai.sectionTitle}><DashboardIcon name="sparkles" size={20} aria-hidden="true" /><h2 id={`${id}-title`}>AI second opinion</h2><CheckBadge status="not_applicable" label="Advisory only" /></div>
           <p>Separate compliance and marketing feedback for revision {revision.number}. Human review and approval remain required.</p>
         </div>
-        {!resource.loading && !resource.error && !review && resource.data?.available && isCurrent && (
-          <button type="button" className={buttonClass({ variant: "secondary" })} disabled={generating || pending || failure?.conflict} onClick={() => void generate()}>
-            {generating ? <DashboardIcon name="rotate-right" size={16} className={ai.spinner} aria-hidden="true" /> : <DashboardIcon name="sparkles" size={16} aria-hidden="true" />}
-            {generating ? "Generating AI review…" : "Generate AI review"}
+        {!generating && !resource.loading && !resource.error && !review && resource.data?.available && isCurrent && (
+          <button type="button" className={buttonClass({ variant: "secondary" })} disabled={pending || failure?.conflict} onClick={generate}>
+            <DashboardIcon name="sparkles" size={16} aria-hidden="true" />
+            {failure ? "Retry AI review" : "Generate AI review"}
           </button>
         )}
       </div>
 
-      {resource.loading && <p className={cn(ai.status, "text-muted")} role="status">Loading saved AI review…</p>}
-      {resource.error && <div className={ai.status}><ErrorMessage message={resource.error} retry={resource.reload} retryLabel="Retry loading AI review" /></div>}
-      {failure && <div className={ai.status}><ErrorMessage message={failure.message} retry={failure.conflict ? onReload : undefined} retryLabel="Reload submission" /></div>}
-      <p className={generating ? "ai-review-status muted" : "sr-only"} role="status">{generating ? "Generating compliance and marketing feedback. This may take up to a minute; you can continue reviewing the submission." : promotionMessage}</p>
+      {resource.loading && !generating && !failure && <p className={cn(ai.status, "text-muted")} role="status">Loading saved AI review…</p>}
+      {resource.error && !generating && !failure && !review && <div className={ai.status}><ErrorMessage message={resource.error} retry={resource.reload} retryLabel="Retry loading AI review" /></div>}
+      {failure && <div className={ai.status}><ErrorMessage message={failure.message} retry={failure.conflict ? onReload : undefined} retryLabel="Reload submission" /><p className="text-muted">Revision {revision.number} is saved. Copy checks and human review remain available.</p></div>}
+      {generating && <div className={ai.status} role="status"><p><DashboardIcon name="rotate-right" size={16} className={ai.spinner} aria-hidden="true" /> <strong>Preparing AI second opinion…</strong></p><p className="text-muted">Revision {revision.number} is saved. You can continue reviewing while OpenAI prepares compliance and marketing feedback.</p></div>}
+      <p className="sr-only" role="status">{promotionMessage}</p>
 
-      {!resource.loading && !resource.error && !review && (
+      {!generating && !failure && !resource.loading && !resource.error && !review && (
         <div className={ai.empty}>
           {!isCurrent ? (
             <p>No AI review was saved for this revision. New reviews can only be generated for the current revision.</p>
           ) : resource.data?.available ? (
-            <p>Generate an opinion when you’re ready. This sends the saved revision and available offer context to OpenAI. Suggestions do not change the copy or review decision.</p>
+            <p>Generate an opinion for saved revision {revision.number}. This sends the saved copy and available offer context to OpenAI. Suggestions do not change the copy or review decision.</p>
           ) : (
             <p>AI review is not configured. Copy checks and human review remain available.</p>
           )}

@@ -22,14 +22,14 @@ Every new revision reruns the checks and requires a new decision. The intended g
 
 ## Checks and OpenAI second opinions
 
-Six deterministic checks cover specific offer and policy conditions. The **OpenAI Responses API** adds an on-demand second opinion on meaning and communication, using the saved copy, matching offer version, check results, and supplied references.
+Six deterministic checks cover specific offer and policy conditions. The **OpenAI Responses API** adds a second opinion on meaning and communication, using the saved copy, matching offer version, check results, and supplied references.
 
-In the submission workspace, both roles can generate two separate views:
+Saving a submission or revision starts an opinion in the background without delaying navigation. Both roles can read two separate views in the submission workspace:
 
 - **Compliance:** potential misleading implications, contradictions, unsupported claims, and questions to resolve.
 - **Marketing:** clarity, tone, audience fit, and suggested wording, with instructions to preserve offer facts and disclosures.
 
-Reviewers can turn a useful AI concern into a recorded manual concern and include it in a change request. Opinions are saved against the exact revision with model and prompt-version metadata, then reused on later visits.
+Reviewers can turn a useful AI concern into a recorded manual concern and include it in a change request. Opinions are saved against the exact revision with model and prompt-version metadata, then reused on later visits. Existing submissions can also request an opinion, and failed requests can be retried.
 
 Submitted copy is treated as untrusted input. The API validates structured output, verifies quotations against the original copy, and rejects reference IDs outside the supplied context. AI suggestions cannot edit copy, resolve findings, or approve a submission; those remain explicit human actions. This supports the thesis by giving reviewers a focused starting point for judgment and submitters concrete material to improve.
 

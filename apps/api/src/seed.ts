@@ -256,7 +256,7 @@ const dispositionsFor = (review: SeedReview, analysis: Analysis) => {
  * Generation is deterministic — index arithmetic, no randomness — so the same
  * count always yields the same workspace and tests stay stable.
  */
-export const DEFAULT_SEED_CASES = 50;
+export const DEFAULT_SEED_CASES = 25;
 
 const campaigns = [
   "brand refresh",

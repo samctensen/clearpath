@@ -10,6 +10,7 @@ import {
 } from "@clearpath/contracts";
 import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { useAiReviewGeneration } from "@/lib/use-ai-review";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateWorkspaceQueries, queryKeys } from "@/lib/query-client";
 import { type SubmissionDraftInput } from "@/lib/submission-draft";
@@ -142,6 +143,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   const role = useDemoRole();
   const fieldId = useId();
   const queryClient = useQueryClient();
+  const aiReview = useAiReviewGeneration();
   const save = useMutation({
     mutationFn: ({ input, expectedRevision }: { input: SubmissionInput; expectedRevision?: number }) => onSave(input, role, expectedRevision),
     onSuccess: (detail) => {
@@ -220,6 +222,8 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
       } else {
         const saved = await save.mutateAsync({ input: parsed.data, expectedRevision });
         draft.saved();
+        const savedRevision = saved.revisions.at(-1)!.number;
+        aiReview.mutate({ path: `/cases/${encodeURIComponent(saved.case.id)}`, revision: savedRevision, role });
         onSaved(saved);
       }
     } catch (failure) {

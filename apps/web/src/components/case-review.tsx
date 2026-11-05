@@ -7,6 +7,7 @@ import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
 import { useCaseResource } from "@/lib/use-case-resource";
 import { useApiMutation } from "@/lib/use-api-mutation";
+import { useAiReviewGenerationState } from "@/lib/use-ai-review";
 import { checkChangeLabels, compareRevisionChecks } from "@/lib/revision-comparison";
 import { AiReviewPanel } from "./ai-review-panel";
 import { CaseRefreshDialog } from "./case-refresh-dialog";
@@ -85,6 +86,11 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
   const passedChecksRef = useRef<HTMLDetailsElement>(null);
   const current = detail.revisions.at(-1)!;
   const revision = detail.revisions.find((item) => item.number === selected) ?? current;
+  const aiGeneration = useAiReviewGenerationState(path, revision.number);
+  const aiSection = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if ((aiGeneration.pending || aiGeneration.error) && aiSection.current) aiSection.current.open = true;
+  }, [aiGeneration.pending, aiGeneration.error, editing]);
   const previous = detail.revisions[detail.revisions.indexOf(revision) - 1];
   const isCurrent = revision === current;
   const isDecided = detail.case.status === "approved" || detail.case.status === "changes_requested";
@@ -326,7 +332,7 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
               {canReview && <div className={styles.decisionSection}><ReviewDecision key={current.id} detail={detail} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} onApprove={() => setApproving(true)} pending={pending} /></div>}
             </div>
           </div>
-          <details className={styles.advisory}><summary>AI second opinion <span>· Advisory only</span></summary><AiReviewPanel
+          <details ref={aiSection} className={styles.advisory}><summary>AI second opinion <span>· {aiGeneration.pending ? "Preparing opinion…" : "Advisory only"}</span></summary><AiReviewPanel
             key={`${detail.case.id}:${revision.number}`}
             path={path}
             revision={revision}
