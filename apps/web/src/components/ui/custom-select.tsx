@@ -12,6 +12,7 @@ type CustomSelectProps = {
   value: string;
   options: readonly SelectOption[];
   onChange: (value: string) => void;
+  onBlur?: () => void;
   disabled?: boolean;
   className?: string;
   invalid?: boolean;
@@ -19,7 +20,7 @@ type CustomSelectProps = {
 };
 
 /** Select-only combobox: focus stays on the trigger while its listbox is open. */
-export function CustomSelect({ id, label, value, options, onChange, disabled = false, className, invalid = false, describedBy }: CustomSelectProps) {
+export function CustomSelect({ id, label, value, options, onChange, onBlur, disabled = false, className, invalid = false, describedBy }: CustomSelectProps) {
   const generatedId = useId();
   const triggerId = id ?? `select-${generatedId}`;
   const listId = `${triggerId}-options`;
@@ -179,11 +180,18 @@ export function CustomSelect({ id, label, value, options, onChange, disabled = f
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
       disabled={isDisabled}
-      className="group relative flex items-center w-full min-w-0 min-h-[36px] max-[650px]:min-h-[44px] pl-3 pr-[38px] py-2 rounded-lg border border-line bg-raised text-ink text-[13px] max-[650px]:text-base font-medium leading-[1.4] text-left shadow-none transition-[border-color,background-color] duration-[140ms] ease-out hover:not-disabled:border-[#484848] focus-visible:outline-none focus-visible:border-accent aria-[invalid=true]:border-danger aria-expanded:border-accent aria-expanded:outline-2 aria-expanded:outline-[color-mix(in_srgb,var(--color-accent)_23%,transparent)] aria-expanded:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
+      className={cn("group relative flex items-center w-full min-w-0 min-h-[36px] max-[650px]:min-h-[44px] pl-3 pr-[38px] py-2 rounded-lg border bg-raised text-ink text-[13px] max-[650px]:text-base font-medium leading-[1.4] text-left shadow-none transition-[border-color,background-color] duration-[140ms] ease-out focus-visible:outline-none aria-expanded:outline-2 aria-expanded:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+        invalid
+          ? "border-danger aria-expanded:outline-danger/25"
+          : "border-line hover:not-disabled:border-[#484848] focus-visible:border-accent aria-expanded:border-accent aria-expanded:outline-[color-mix(in_srgb,var(--color-accent)_23%,transparent)]",
+      )}
       onClick={() => expanded ? closeList() : openList()}
       onKeyDown={onKeyDown}
       onBlur={event => {
-        if (!listRef.current?.contains(event.relatedTarget as Node | null)) closeList();
+        if (!listRef.current?.contains(event.relatedTarget as Node | null)) {
+          closeList();
+          onBlur?.();
+        }
       }}
     >
       <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{selected?.label ?? (value || "Choose an option")}</span>

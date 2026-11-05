@@ -161,8 +161,14 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   const [conflict, setConflict] = useState(false);
   const needsLatest = conflict || (revision !== undefined && expectedRevision !== undefined && expectedRevision < revision);
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof SubmissionInput, boolean>>>({});
+  const [showAllErrors, setShowAllErrors] = useState(false);
   const [errorTarget, setErrorTarget] = useState<"analyze" | "save">("save");
+  const validation = submitSchema.safeParse(input);
+  const validationErrors = validation.success ? {} : collectFieldErrors(input, validation.error);
+  const fieldErrors: FieldErrors = Object.fromEntries(
+    Object.entries(validationErrors).filter(([field]) => showAllErrors || touchedFields[field as keyof SubmissionInput]),
+  );
   const offers: Offer[] = catalog.data?.offers ?? [];
   const matchingOffers = offers.filter((offer) => offer.productId === input.productId);
   const selectedOffer = offers.find((offer) => offer.id === input.offerId);
@@ -170,11 +176,15 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
   const previewConcerns = preview?.checks.filter((check) => check.status === "finding" || check.status === "unknown") ?? [];
   const previewOtherChecks = preview?.checks.filter((check) => check.status === "passed" || check.status === "not_applicable") ?? [];
 
+  function touchField(key: keyof SubmissionInput) {
+    setTouchedFields((current) => current[key] ? current : { ...current, [key]: true });
+  }
+
   function update<K extends keyof SubmissionDraftInput>(key: K, value: SubmissionDraftInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
     setPreview(null);
-    // Correcting a field clears its message; the rest stay until the next attempt.
-    setFieldErrors((current) => (current[key] ? { ...current, [key]: undefined } : current));
+    setError("");
+    touchField(key);
   }
 
   function changeProduct(productId: ProductId) {
@@ -199,20 +209,20 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
     if (isPending || (mode === "save" && needsLatest)) return;
     setError("");
     setErrorTarget(mode);
-    const parsed = submitSchema.safeParse(input);
+    const parsed = validation;
     if (!parsed.success) {
       const errors = collectFieldErrors(input, parsed.error);
       const missing = [...fieldOrder, ...(Object.keys(errors) as (keyof SubmissionInput)[])].filter(
         (field, index, all) => errors[field] && all.indexOf(field) === index,
       );
-      setFieldErrors(errors);
+      setShowAllErrors(true);
       setError(missing.length === 1
         ? `${fieldNames[missing[0]]}: ${errors[missing[0]]}`
         : `${missing.length} fields need attention before ${mode === "save" ? "submitting" : "checks can run"}: ${missing.map((field) => fieldNames[field]).join(", ")}.`);
       document.getElementById(`${fieldId}-${missing[0]}`)?.focus();
       return;
     }
-    setFieldErrors({});
+    setShowAllErrors(false);
     setPending(mode);
     try {
       if (mode === "analyze") {
@@ -266,15 +276,15 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
             </div>
             <div className={styles.fieldGrid}>
               <label className={cn(styles.field, styles.wide)} htmlFor={`${fieldId}-title`}>Campaign title (required)
-                <input id={`${fieldId}-title`} maxLength={160} value={input.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Spring card launch" aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? `${fieldId}-title-error` : undefined} />
+                <input id={`${fieldId}-title`} maxLength={160} value={input.title} onChange={(event) => update("title", event.target.value)} onBlur={() => touchField("title")} placeholder="e.g. Spring card launch" aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? `${fieldId}-title-error` : undefined} />
                 <FieldError id={`${fieldId}-title-error`} message={fieldErrors.title} />
               </label>
               <label className={styles.field} htmlFor={`${fieldId}-publisher`}>Publisher or partner (required)
-                <input id={`${fieldId}-publisher`} maxLength={100} value={input.publisher} onChange={(event) => update("publisher", event.target.value)} placeholder="e.g. ClearPath Marketing" aria-invalid={Boolean(fieldErrors.publisher)} aria-describedby={fieldErrors.publisher ? `${fieldId}-publisher-error` : undefined} />
+                <input id={`${fieldId}-publisher`} maxLength={100} value={input.publisher} onChange={(event) => update("publisher", event.target.value)} onBlur={() => touchField("publisher")} placeholder="e.g. ClearPath Marketing" aria-invalid={Boolean(fieldErrors.publisher)} aria-describedby={fieldErrors.publisher ? `${fieldId}-publisher-error` : undefined} />
                 <FieldError id={`${fieldId}-publisher-error`} message={fieldErrors.publisher} />
               </label>
               <label className={styles.field} htmlFor={`${fieldId}-launchDate`}>Target launch date (required)
-                <input id={`${fieldId}-launchDate`} type="date" value={input.launchDate} onChange={(event) => update("launchDate", event.target.value)} aria-invalid={Boolean(fieldErrors.launchDate)} aria-describedby={fieldErrors.launchDate ? `${fieldId}-launchDate-error` : undefined} />
+                <input id={`${fieldId}-launchDate`} type="date" value={input.launchDate} onChange={(event) => update("launchDate", event.target.value)} onBlur={() => touchField("launchDate")} aria-invalid={Boolean(fieldErrors.launchDate)} aria-describedby={fieldErrors.launchDate ? `${fieldId}-launchDate-error` : undefined} />
                 <FieldError id={`${fieldId}-launchDate-error`} message={fieldErrors.launchDate} />
               </label>
               <div className={styles.field}><label htmlFor={`${fieldId}-product`}>Product</label>
@@ -287,7 +297,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
                 <CustomSelect id={`${fieldId}-format`} label="Asset format" value={input.format} options={assetFormats.map((format) => ({ value: format, label: formatLabels[format] }))} onChange={(value) => changeFormat(value as AssetFormat)} disabled={isPending} />
               </div>
               <div className={styles.field}><label htmlFor={`${fieldId}-completeAsset`}>Copy provided (required)</label>
-                <CustomSelect id={`${fieldId}-completeAsset`} label="Copy provided (required)" value={input.completeAsset === null ? "" : input.completeAsset ? "complete" : "excerpt"} options={[{ value: "", label: "Choose completeness", disabled: true }, { value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} disabled={isPending} invalid={Boolean(fieldErrors.completeAsset)} describedBy={fieldErrors.completeAsset ? `${fieldId}-completeAsset-error` : undefined} />
+                <CustomSelect id={`${fieldId}-completeAsset`} label="Copy provided (required)" value={input.completeAsset === null ? "" : input.completeAsset ? "complete" : "excerpt"} options={[{ value: "", label: "Choose completeness", disabled: true }, { value: "complete", label: "Complete asset" }, { value: "excerpt", label: "Excerpt only" }]} onChange={(value) => update("completeAsset", value === "complete")} onBlur={() => touchField("completeAsset")} disabled={isPending} invalid={Boolean(fieldErrors.completeAsset)} describedBy={fieldErrors.completeAsset ? `${fieldId}-completeAsset-error` : undefined} />
                 <FieldError id={`${fieldId}-completeAsset-error`} message={fieldErrors.completeAsset} />
               </div>
               {input.format === "banner" && <div className={cn(styles.field, styles.wide)}><label htmlFor={`${fieldId}-application`}>Does the banner link to an application?</label>
@@ -299,7 +309,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
           <section className={styles.section} aria-labelledby={`${fieldId}-copy-heading`}>
             <div className={styles.sectionHeading}><div><h2 id={`${fieldId}-copy-heading`}>Copy and evidence</h2><p>Include the exact wording customers will see, with disclosures.</p></div><DashboardIcon name="file-lines" size={19} /></div>
             <label className={styles.field} htmlFor={`${fieldId}-content`}><span className={styles.fieldLabel}>Marketing copy (required) <small aria-hidden="true">{input.content.length.toLocaleString()} / 20,000</small></span>
-              <textarea id={`${fieldId}-content`} className={styles.copyInput} maxLength={20000} rows={6} value={input.content} onChange={(event) => update("content", event.target.value)} placeholder="Paste the marketing copy here…" aria-invalid={Boolean(fieldErrors.content)} aria-describedby={fieldErrors.content ? `${fieldId}-content-error` : undefined} />
+              <textarea id={`${fieldId}-content`} className={styles.copyInput} maxLength={20000} rows={6} value={input.content} onChange={(event) => update("content", event.target.value)} onBlur={() => touchField("content")} placeholder="Paste the marketing copy here…" aria-invalid={Boolean(fieldErrors.content)} aria-describedby={fieldErrors.content ? `${fieldId}-content-error` : undefined} />
               <FieldError id={`${fieldId}-content-error`} message={fieldErrors.content} />
             </label>
             <label className={cn(styles.field, styles.evidenceField)}><span className={styles.fieldLabel}>Supporting evidence <small>Optional</small></span>
@@ -342,8 +352,8 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
         {cannotRevise && <p className={styles.roleNote}>Switch to Submitter to submit this revision.</p>}
         {errorTarget === "save" && <ErrorMessage message={error} />}
         <div className={styles.submitRow}>
-          <Button variant="ghost" disabled={Boolean(pending)} onClick={() => draft.requestLeave(onCancel)}>Cancel</Button>
-          <button className={buttonClass({ variant: "primary" })} type="submit" disabled={isPending || cannotRevise || needsLatest}>
+          <Button variant="secondary" disabled={Boolean(pending)} onClick={() => draft.requestLeave(onCancel)}>Cancel</Button>
+          <button className={buttonClass({ variant: "primary" })} type="submit" disabled={isPending || cannotRevise || needsLatest || !validation.success}>
             {pending === "save" ? "Submitting…" : revision === undefined ? "Submit for review" : "Submit new revision"}<DashboardIcon name="arrow-right" size={14} />
           </button>
         </div>

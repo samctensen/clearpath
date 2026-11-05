@@ -7,16 +7,18 @@ export const styles = {
     "[&>.cp-error]:w-full " +
     "[&>a]:text-accent [&>a]:text-xs [&>a]:underline [&>a]:underline-offset-[3px]",
 
+  /* Column gaps only: the editor and the footer are one card split across two rows, so a
+     row gap would open a seam between them. A stacked layout wants one, and says so. */
   layout:
-    "grid grid-cols-[minmax(0,1fr)_minmax(270px,320px)] items-start gap-6 text-ink " +
-    "min-[1440px]:grid-cols-[minmax(0,1fr)_350px] min-[1440px]:gap-7 " +
-    "max-[1100px]:grid-cols-[minmax(0,1fr)_280px] max-[1100px]:gap-[18px] " +
-    "max-[900px]:grid-cols-[minmax(0,1fr)] max-[900px]:gap-[22px]",
+    "grid grid-cols-[minmax(0,1fr)_minmax(270px,320px)] items-start gap-x-6 gap-y-0 text-ink " +
+    "min-[1440px]:grid-cols-[minmax(0,1fr)_350px] min-[1440px]:gap-x-7 " +
+    "max-[1100px]:grid-cols-[minmax(0,1fr)_280px] max-[1100px]:gap-x-[18px] " +
+    "max-[900px]:grid-cols-[minmax(0,1fr)] max-[900px]:gap-y-[22px]",
 
   /* DOM order stays editor -> self-check -> submit at every breakpoint. */
   form:
-    "[grid-template-areas:'editor_rail''footer_rail'] grid-rows-[min-content_1fr] gap-y-0 " +
-    "max-[900px]:[grid-template-areas:'editor''rail''footer'] max-[900px]:grid-rows-[auto_auto_auto] max-[900px]:gap-y-[22px] " +
+    "[grid-template-areas:'editor_rail''footer_rail'] grid-rows-[min-content_1fr] " +
+    "max-[900px]:[grid-template-areas:'editor''rail''footer'] max-[900px]:grid-rows-[auto_auto_auto] " +
     "[&>.sf-editor]:[grid-area:editor] [&>.sf-editor]:border-b-0 [&>.sf-editor]:rounded-b-none " +
     "max-[900px]:[&>.sf-editor]:border-b max-[900px]:[&>.sf-editor]:border-b-line max-[900px]:[&>.sf-editor]:rounded-[14px] " +
     "[&>.sf-rail]:[grid-area:rail] " +
@@ -51,8 +53,8 @@ export const styles = {
     "[&_:is(input,textarea)]:transition-[border-color] [&_:is(input,textarea)]:duration-150 " +
     "motion-reduce:[&_:is(input,textarea)]:transition-none " +
     "max-[600px]:[&_input]:min-h-[44px] " +
-    "hover:[&_:is(input,textarea)]:border-[#424242] " +
-    "[&_:is(input,textarea):focus-visible]:border-accent [&_:is(input,textarea):focus-visible]:outline-none " +
+    "hover:[&_:is(input,textarea):not([aria-invalid=true])]:border-[#424242] " +
+    "[&_:is(input,textarea):focus-visible:not([aria-invalid=true])]:border-accent [&_:is(input,textarea):focus-visible]:outline-none " +
     "[&_:is(input,textarea)]:placeholder:text-[#737373] " +
     "[&_:is(input,textarea)[aria-invalid=true]]:border-danger " +
     "[&_input[type=date]]:[color-scheme:dark]",
@@ -76,9 +78,9 @@ export const styles = {
     "sf-footer grid gap-3 px-7 py-[18px] max-[1100px]:px-[22px] max-[600px]:p-4 " +
     "border-t border-t-line bg-panel [&>.cp-error]:mb-0",
 
+  /* Each button carries its own depth: a row-wide accent glow also haloed the cancel. */
   submitRow:
     "flex justify-between items-center gap-3 " +
-    "[&_button]:shadow-[0_3px_12px_#6d28d91f] " +
     "max-[600px]:[&_button]:min-h-[44px] max-[600px]:[&_button]:px-3",
 
   roleNote: "text-muted text-xs",

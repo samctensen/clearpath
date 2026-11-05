@@ -8,4 +8,6 @@ The form gathers copy, the selected product and offer, publisher, format, target
 
 Unknown context is allowed and stays visible. The form distinguishes checks on an unsaved draft from the saved submission; recoverable drafts protect unfinished work. Offer-library examples provide a useful starting point.
 
+Fields validate as they are edited or left. Invalid fields keep a red border and an inline explanation until corrected; submitting stays disabled until the required inputs are valid.
+
 Submitting creates a review case with its first revision. Passing automated checks still requires a human copy-review decision.
