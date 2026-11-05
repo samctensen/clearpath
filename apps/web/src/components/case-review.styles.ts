@@ -217,14 +217,16 @@ export const styles = {
     "[&_.cp-action-row]:gap-2 [&_.cp-action-row]:mt-[18px] " +
     "[&_.cp-btn]:text-xs max-[640px]:[&_.cp-btn]:min-h-[44px] max-[640px]:[&_.cp-action-row>button]:flex-auto",
 
+  /* The summary is the AI panel's only header, so the panel itself repeats no title. */
   advisory:
     "mt-[30px] py-[27px] border-y border-y-line max-[640px]:mt-6 max-[640px]:py-6 " +
-    "[&>summary]:cursor-pointer [&>summary]:px-5 [&>summary]:py-4 [&>summary]:font-semibold " +
-    "[&>summary_span]:font-normal [&>summary_span]:opacity-75 " +
-    "[&>.cp-panel]:m-0 [&>.cp-panel]:p-0 [&>.cp-panel]:border-0 [&>.cp-panel]:rounded-none [&>.cp-panel]:bg-transparent " +
-    "[&_h2]:text-base [&_h2]:font-[650] [&_.cp-panel-heading_p]:text-xs " +
-    "[&_.cp-check-card]:py-[18px] [&_.cp-check-card]:border-0 [&_.cp-check-card]:border-t [&_.cp-check-card]:border-t-line " +
-    "[&_.cp-check-card]:rounded-none [&_.cp-check-card]:bg-transparent [&_.cp-check-card]:text-[13px]",
+    "[&>summary]:flex [&>summary]:items-center [&>summary]:gap-2.5 [&>summary]:cursor-pointer [&>summary]:list-none " +
+    "[&>summary::-webkit-details-marker]:hidden max-[640px]:[&>summary]:py-1 " +
+    "[&>summary>h2]:m-0 [&>summary>h2]:text-[15px] [&>summary>h2]:font-[650] [&>summary>h2]:text-heading " +
+    "[&>summary>span]:text-muted [&>summary>span]:text-xs [&>summary>span]:font-normal " +
+    "[&>summary:hover>h2]:text-white " +
+    "[&_.cr-chevron]:text-[#6a6a6a] [&_.cr-chevron]:transition-transform [&[open]_.cr-chevron]:rotate-90 " +
+    "motion-reduce:[&_.cr-chevron]:transition-none",
 
   activity: "mt-7",
   activityHeading:

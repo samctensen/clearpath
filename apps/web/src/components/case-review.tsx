@@ -332,7 +332,7 @@ function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initial
               {canReview && <div className={styles.decisionSection}><ReviewDecision key={current.id} detail={detail} revision={current.number} unresolved={unresolved} openManual={openManual} canRequest={canRequest} mutate={mutate} onApprove={() => setApproving(true)} pending={pending} /></div>}
             </div>
           </div>
-          <details ref={aiSection} className={styles.advisory}><summary>AI second opinion <span>· {aiGeneration.pending ? "Preparing opinion…" : "Advisory only"}</span></summary><AiReviewPanel
+          <details ref={aiSection} className={styles.advisory}><summary><DashboardIcon name="chevron-right" size={12} className="cr-chevron" aria-hidden="true" /><h2>AI second opinion</h2><span>{aiGeneration.pending ? "Writing…" : "Advisory"}</span></summary><AiReviewPanel
             key={`${detail.case.id}:${revision.number}`}
             path={path}
             revision={revision}
