@@ -257,7 +257,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
             <button type="button" className={styles.pagerStep} aria-label="Next page" disabled={!page.hasNext || loading} onClick={() => setPosition({ after: page.endCursor, before: null })}><Icon name="arrow-right" size={12} /></button>
           </div>}
           {(scoped || filters.status !== "all" || filters.view !== "all") && <button type="button" onClick={resetFilters}>Reset filters</button>}
-          <span className={styles.checkNote}>{role === "reviewer" ? "Copy checks are automated findings, not all review concerns." : "Showing the shared demo workspace."}</span>
+          <span className={styles.checkNote}>{role === "reviewer" ? "Copy checks are automated findings, not all review concerns." : "Showing the shared compliance workspace."}</span>
         </footer>
       </section>
       {action && <QueueActionDialog key={`${action.caseId}:${action.kind}`} caseId={action.caseId} title={action.title} action={action.kind} role={action.role} currentRole={role} onClose={closeAction} onSuccess={message => {
@@ -267,6 +267,6 @@ function RoleQueue({ role }: { role: DemoRole }) {
         resource.reload();
       }} />}
       <div className={actionNotice ? actionStyles.notice : "sr-only"} role="status" aria-atomic="true">{actionNotice}</div>
-      <footer className={styles.disclaimer}><Icon name="shield-check" size={14} /><p>Copy approval applies to one revision and does not clear an asset for publication.</p><span>Fictional demo</span></footer>
+      <footer className={styles.disclaimer}><Icon name="shield-check" size={14} /><p>Copy approval applies to one revision and does not clear an asset for publication.</p><span>&copy; 2026 ClearPath Financial, LLC</span></footer>
   </div>;
 }

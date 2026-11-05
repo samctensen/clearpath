@@ -61,7 +61,7 @@ export function Catalog() {
 
   return (
     <div className={styles.page}>
-      <PageHeader title="Offer library" description="Fictional offer terms and approved example copy for this demo." actions={data ? <Link href="/policies" className={styles.policy}><DashboardIcon name="shield-check" size={14} />Policy {data.policyVersion}<DashboardIcon name="arrow-right" size={11} /></Link> : undefined} />
+      <PageHeader title="Offer library" description="Current offer terms and approved example copy." actions={data ? <Link href="/policies" className={styles.policy}><DashboardIcon name="shield-check" size={14} />Policy {data.policyVersion}<DashboardIcon name="arrow-right" size={11} /></Link> : undefined} />
       {error && <div className={styles.error}><ErrorMessage message={error} retry={reload} /></div>}
       {loading && !data && <CatalogSkeleton />}
       {data && data.offers.length === 0 && <div className={styles.empty}><DashboardIcon name="book-open" size={27} /><h2>No offers in the library</h2><p>{role === "submitter" ? "You can still prepare a submission using unknown offer context." : "Submissions are reviewed against unknown offer context until the library is filled."}</p>{role === "submitter" && <Link href="/new" className={buttonClass({ variant: "secondary" })}>Start a submission<DashboardIcon name="arrow-right" size={14} /></Link>}</div>}

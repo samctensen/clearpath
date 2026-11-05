@@ -108,7 +108,7 @@ export function DecisionLog() {
       </section>
       <aside className={styles.decisionDetail} aria-labelledby="decision-detail-title">
         <div className={styles.detailHeading}><h2 id="decision-detail-title" ref={detailHeading} tabIndex={-1}>Decision record{selected && <span>Revision {selected.revision}</span>}</h2><button type="button" className={styles.backToList} onClick={() => { listHeading.current?.focus({ preventScroll: true }); listHeading.current?.scrollIntoView({ block: "start" }); }}><DashboardIcon name="arrow-left" size={12} />Back to list</button></div>
-        {selected ? <DecisionDetail key={`${selected.id}-${selected.currentRevision}`} record={selected} /> : <div className={styles.empty}><h3>Decision unavailable</h3><p>This link does not match a decision in this demo workspace. Choose a record from the list.</p></div>}
+        {selected ? <DecisionDetail key={`${selected.id}-${selected.currentRevision}`} record={selected} /> : <div className={styles.empty}><h3>Decision unavailable</h3><p>This link does not match a decision in this workspace. Choose a record from the list.</p></div>}
       </aside>
     </div>}
     <p className={styles.footerNote}>Decisions remain attached to the reviewed revision. Copy approval does not clear an asset for publication.</p>
@@ -146,7 +146,7 @@ function DecisionContent({ record, resource }: {
     <div className={styles.decisionSummary}>
       <CaseStatusBadge status={record.decision === "approve" ? "approved" : "changes_requested"} /><h3>{record.title}</h3><p>{record.publisher}</p>
       {record.caseDeleted ? <div className={styles.historical}><DashboardIcon name="file-lines" size={15} /><span><strong>Archived submission</strong>This submission was deleted from the active queue. Its decision, feedback, and version references are retained here.</span></div> : historical && <div className={styles.historical}><DashboardIcon name="code-branch" size={15} /><span><strong>Earlier revision</strong>This decision covers revision {record.revision}. The current case is on revision {currentRevision}.</span></div>}
-      <dl className={styles.recordFacts}><div><dt>Recorded by</dt><dd>{record.actor === "reviewer" ? "Demo reviewer" : record.actor}</dd></div><div><dt>Decision date</dt><dd><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time></dd></div><div><dt>Policy version</dt><dd>{record.policyVersion}</dd></div><div><dt>Offer version</dt><dd>{record.offerVersion ?? "No matching offer"}</dd></div></dl>
+      <dl className={styles.recordFacts}><div><dt>Recorded by</dt><dd>{record.actor === "reviewer" ? "Compliance reviewer" : record.actor}</dd></div><div><dt>Decision date</dt><dd><time dateTime={record.createdAt}>{formatTime(record.createdAt)}</time></dd></div><div><dt>Policy version</dt><dd>{record.policyVersion}</dd></div><div><dt>Offer version</dt><dd>{record.offerVersion ?? "No matching offer"}</dd></div></dl>
     </div>
     {hasDecisionFeedback(record.feedback) && <section className={styles.feedback}><h3>Reviewer feedback</h3><p>{record.feedback}</p></section>}
     {loading && <ReferenceLoading label="Loading the reviewed revision" />}

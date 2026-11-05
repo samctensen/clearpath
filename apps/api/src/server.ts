@@ -87,7 +87,7 @@ export async function createApiServer(deps: Dependencies) {
   app.addHook("onRequest", async (req, reply) => {
     const demoRole = req.headers["x-demo-role"];
     if (demoRole !== undefined && demoRole !== "reviewer" && demoRole !== "submitter") {
-      return reply.status(400).send(error("invalid", "Invalid demo role"));
+      return reply.status(400).send(error("invalid", "Invalid role"));
     }
     if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
       if (!req.headers["content-type"]?.toLowerCase().startsWith("application/json")) {
@@ -123,7 +123,7 @@ export async function createApiServer(deps: Dependencies) {
     pending ??= deps.store.ensureSharedWorkspace(seedPlansFor(deps)).then((result) => {
       if (!result.ok) {
         pending = null;
-        throw new Error("Unable to open the demo workspace");
+        throw new Error("Unable to open the workspace");
       }
       return result.value;
     }).catch((err) => {
@@ -173,7 +173,7 @@ export async function createApiServer(deps: Dependencies) {
   // Shared state drifts as visitors review copy; this puts the walkthrough back.
   app.post("/api/demo/reset", async (_req, reply) => {
     const reset = await deps.store.resetSharedWorkspace(seedPlansFor(deps));
-    if (!reset.ok) return reply.status(500).send(error("storage", "Unable to reset the demo"));
+    if (!reset.ok) return reply.status(500).send(error("storage", "Unable to reset the workspace"));
     reply.header("Cache-Control", "private, no-store");
     return { ok: true, workspace: SHARED_WORKSPACE };
   });

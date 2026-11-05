@@ -68,8 +68,8 @@ export function DashboardShell({ children, role }: { children: ReactNode; role: 
             </Link>
           ))}
         </nav>
-        <div className={styles.demo}>
-          <p><strong>Demo workspace</strong><span>Fictional offers and copy</span></p>
+        <div className={styles.sidebarFooter}>
+          <p><strong>ClearPath Financial, LLC</strong><span>&copy; 2026 · Internal compliance workspace</span></p>
         </div>
       </aside>
       <div className={styles.body}>

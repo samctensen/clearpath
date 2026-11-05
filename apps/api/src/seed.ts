@@ -77,7 +77,7 @@ const samples: SeedSample[] = [
     format: "landing_page",
     publisher: "ClearPath Studio",
     launchDate: "2026-11-15",
-    review: { decision: "approve", note: "Approved for this demo." },
+    review: { decision: "approve", note: "Approved against the current offer snapshot." },
   },
   {
     title: "HomeStart Prequalification — partner email",
@@ -141,7 +141,7 @@ const samples: SeedSample[] = [
     launchDate: "2026-11-12",
     review: {
       decision: "approve",
-      note: "Rates match the fictional Flex Personal Loan snapshot.",
+      note: "Rates match the Flex Personal Loan snapshot.",
     },
   },
   {
@@ -330,7 +330,7 @@ function generated(index: number, catalog: Offer[]): SeedSample {
       confirm: ["offer-match", "card-promo-terms", "loan-repayment", "approval-claims"],
     }
     : outcome === 2
-    ? { decision: "approve", note: "Reviewed against the fictional catalog snapshot." }
+    ? { decision: "approve", note: "Reviewed against the catalog snapshot." }
     : undefined;
   return {
     title: `${offer.name} — ${campaign} ${String(index + 1).padStart(3, "0")}`,

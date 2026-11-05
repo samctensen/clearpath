@@ -86,14 +86,14 @@ export function PolicyGuide() {
       </aside>
       <PolicyDetail rule={selected} onBack={() => { indexNavigation.current?.focus({ preventScroll: true }); indexNavigation.current?.scrollIntoView({ block: "start" }); }} />
     </div>}
-    <p className={styles.footerNote}>This guide covers the demo’s six text checks. A human makes the copy decision; layout and publication review remain separate.</p>
+    <p className={styles.footerNote}>This guide covers ClearPath’s six text checks. A human makes the copy decision; layout and publication review remain separate.</p>
   </div>;
 }
 
 function PolicyDetail({ rule, onBack }: { rule: PolicyRule; onBack: () => void }) {
   return <article id="policy-detail" className={styles.guideDetail} aria-label={rule.title}>
     <header className={styles.guideHeader}>
-      <div className={styles.sourceTag}><span>{sources[rule.reference.type]}</span>{rule.reference.type !== "regulatory_reference" && <span>Fictional demo</span>}<button type="button" className={styles.backToChecks} onClick={onBack}>Back to checks</button></div>
+      <div className={styles.sourceTag}><span>{sources[rule.reference.type]}</span>{rule.reference.type !== "regulatory_reference" && <span>Internal source</span>}<button type="button" className={styles.backToChecks} onClick={onBack}>Back to checks</button></div>
       <h2 id="policy-detail-title" tabIndex={-1}>{rule.title}</h2><p>{rule.summary}</p>
       <div className={styles.productTags}>{rule.products.length === 4 ? <span>All products</span> : rule.products.map((product) => <span key={product}>{productLabels[product]}</span>)}</div>
     </header>
@@ -107,7 +107,7 @@ function PolicyDetail({ rule, onBack }: { rule: PolicyRule; onBack: () => void }
       <div><span className={styles.exampleLabel}>{rule.id === "review-context" ? "More complete context" : "Alternative wording"}</span><p>{rule.example.better}</p></div>
     </div><p className={styles.exampleNote}>{rule.example.explanation}</p></section>
     <footer className={styles.sourceFooter}><div><h3>Source behind this check</h3><p>{rule.reference.label}</p></div>
-      {rule.reference.url ? <a className={buttonClass({ variant: "secondary", size: "small" })} href={rule.reference.url} target="_blank" rel="noreferrer">Read source<DashboardIcon name="arrow-up-right" size={12} /></a> : rule.reference.type === "product_fact" ? <Link className={buttonClass({ variant: "secondary", size: "small" })} href="/catalog">Open offer library<DashboardIcon name="arrow-right" size={12} /></Link> : <span className={styles.readOnly}>Internal demo policy</span>}
+      {rule.reference.url ? <a className={buttonClass({ variant: "secondary", size: "small" })} href={rule.reference.url} target="_blank" rel="noreferrer">Read source<DashboardIcon name="arrow-up-right" size={12} /></a> : rule.reference.type === "product_fact" ? <Link className={buttonClass({ variant: "secondary", size: "small" })} href="/catalog">Open offer library<DashboardIcon name="arrow-right" size={12} /></Link> : <span className={styles.readOnly}>Internal policy</span>}
     </footer>
   </article>;
 }

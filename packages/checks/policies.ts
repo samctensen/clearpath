@@ -14,10 +14,10 @@ const guidance: Record<RuleId, Omit<PolicyRule, "id" | "title" | "reference">> =
   "offer-match": {
     summary: "Keep advertised rates and promotional periods tied to the selected offer.",
     products: ["card", "personal_loan", "mortgage", "unknown"],
-    appliesWhen: "Copy states an APR or a card introductory period that can be compared with the selected fictional offer snapshot.",
+    appliesWhen: "Copy states an APR or a card introductory period that can be compared with the selected offer snapshot.",
     prepare: ["Use the offer library to verify the applicable terms.", "Distinguish introductory and ongoing card APRs.", "Supply the underlying offer when advertising mortgage rates."],
-    limits: "Ambiguous rates or unavailable terms cannot be verified. The mortgage prequalification fixture has no rate data. Matching the catalog establishes consistency with that snapshot only.",
-    example: { attention: "0% intro APR on purchases for 18 months, then 19.99% APR.", better: "0% intro APR on purchases for 12 months from account opening, then 19.99% APR.", explanation: "The fictional Everyday Credit Card offer specifies 12 months. These examples illustrate this check only." },
+    limits: "Ambiguous rates or unavailable terms cannot be verified. The mortgage prequalification offer has no rate data. Matching the catalog establishes consistency with that snapshot only.",
+    example: { attention: "0% intro APR on purchases for 18 months, then 19.99% APR.", better: "0% intro APR on purchases for 12 months from account opening, then 19.99% APR.", explanation: "The Everyday Credit Card offer specifies 12 months. These examples illustrate this check only." },
   },
   "card-intro-label": {
     summary: "Make the introductory nature of a card rate explicit.",
@@ -33,7 +33,7 @@ const guidance: Record<RuleId, Omit<PolicyRule, "id" | "title" | "reference">> =
     appliesWhen: "Complete, standalone card advertising promotes an introductory APR. A qualifying banner linked to an application is treated separately for this check.",
     prepare: ["Include the promotional period and the APR that follows it.", "For a banner, identify whether its destination is an application."],
     limits: "Unknown banner destinations leave applicability unresolved. The linked-banner exception is specific to this provision; it does not waive other checks. Applications and solicitations need separate assessment.",
-    example: { attention: "0% intro APR on purchases. Apply today.", better: "0% intro APR on purchases for 12 months from account opening, then 19.99% APR.", explanation: "The fictional offer supplies the period and later rate. The checker does not establish visual prominence." },
+    example: { attention: "0% intro APR on purchases. Apply today.", better: "0% intro APR on purchases for 12 months from account opening, then 19.99% APR.", explanation: "The offer supplies the period and later rate. The checker does not establish visual prominence." },
   },
   "loan-repayment": {
     summary: "Recognize repayment claims that need a fuller disclosure review.",
@@ -48,8 +48,8 @@ const guidance: Record<RuleId, Omit<PolicyRule, "id" | "title" | "reference">> =
     products: ["card", "personal_loan", "mortgage", "unknown"],
     appliesWhen: "Copy asserts guaranteed approval, pre-approval, or that a customer is already approved, using phrasings recognized by the checker.",
     prepare: ["Provide substantiation for an approval assertion.", "Distinguish preliminary eligibility from a lending commitment.", "Ask a reviewer to evaluate the claim and supporting evidence together."],
-    limits: "AC-1 is a fictional ClearPath policy. A matched phrase is a concern for human judgment, not a legal conclusion. Supplied substantiation is not automatically verified. Straightforward negations should not be flagged.",
-    example: { attention: "You’re already approved for your mortgage.", better: "Explore whether you may prequalify. Final approval is subject to underwriting.", explanation: "The fictional HomeStart service offers preliminary eligibility, not a commitment to lend." },
+    limits: "AC-1 is an internal ClearPath policy. A matched phrase is a concern for human judgment, not a legal conclusion. Supplied substantiation is not automatically verified. Straightforward negations should not be flagged.",
+    example: { attention: "You’re already approved for your mortgage.", better: "Explore whether you may prequalify. Final approval is subject to underwriting.", explanation: "The HomeStart service offers preliminary eligibility, not a commitment to lend." },
   },
 };
 

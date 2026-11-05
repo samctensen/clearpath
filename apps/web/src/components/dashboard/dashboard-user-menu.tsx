@@ -45,13 +45,13 @@ export function DashboardUserMenu({ role, onRoleChange }: { role: DemoRole; onRo
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
       }}
     >
-      <button ref={triggerRef} type="button" className={styles.userTrigger} aria-label={`Demo user, role: ${roleLabel}`} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((value) => !value)}>
+      <button ref={triggerRef} type="button" className={styles.userTrigger} aria-label={`Account, role: ${roleLabel}`} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((value) => !value)}>
         <DashboardIcon name="circle-user" size={23} />
       </button>
       {open && (
         <div id={panelId} className={styles.userPanel}>
-          <div className={styles.roleControl} role="group" aria-label="Demo role">
-            <span className={styles.roleLabel}>Demo role</span>
+          <div className={styles.roleControl} role="group" aria-label="Role">
+            <span className={styles.roleLabel}>Role</span>
             <div className={styles.roleOptions}>
               {roles.map((option) => (
                 <button
@@ -74,7 +74,7 @@ export function DashboardUserMenu({ role, onRoleChange }: { role: DemoRole; onRo
             <Link href="/catalog" onClick={() => setOpen(false)}>Offer library</Link>
             <Link href="/decisions" onClick={() => setOpen(false)}>Decision log</Link>
           </div>
-          <p className={styles.userNote}>Fictional demo workspace. No sign-in or account.</p>
+          <p className={styles.userNote}>Shared compliance workspace.</p>
         </div>
       )}
     </div>

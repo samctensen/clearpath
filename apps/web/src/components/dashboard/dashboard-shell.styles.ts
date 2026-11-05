@@ -52,7 +52,7 @@ export const styles = {
 
   navIcon: "flex-none opacity-75",
 
-  demo:
+  sidebarFooter:
     "mt-auto px-[18px] max-[960px]:hidden text-muted text-[11px] leading-[1.5] " +
     "[&_p]:m-0 [&_strong]:block [&_span]:block " +
     "[&_strong]:mb-0.5 [&_strong]:text-ink [&_strong]:text-[11px] [&_strong]:font-medium [&_strong]:tracking-normal",

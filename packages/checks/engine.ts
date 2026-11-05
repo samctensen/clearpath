@@ -46,10 +46,10 @@ const kinds: Record<RuleId, CheckResult["kind"]> = {
 };
 export const references: Record<RuleId, Reference> = {
   "review-context": {
-    label: "ClearPath fictional offer catalog: product, offer and availability dates",
+    label: "ClearPath offer catalog: product, offer and availability dates",
     type: "product_fact",
   },
-  "offer-match": { label: "ClearPath fictional offer catalog: offer terms", type: "product_fact" },
+  "offer-match": { label: "ClearPath offer catalog: offer terms", type: "product_fact" },
   "card-intro-label": {
     label: "Regulation Z §1026.16(g)(3): stating the term “introductory”",
     type: "regulatory_reference",
@@ -67,7 +67,7 @@ export const references: Record<RuleId, Reference> = {
     url: REG_Z_24,
   },
   "approval-claims": {
-    label: "ClearPath policy AC-1 (fictional): approval and pre-approval claims",
+    label: "ClearPath policy AC-1: approval and pre-approval claims",
     type: "company_policy",
   },
 };
@@ -884,7 +884,7 @@ const approvalClaims = ({ input, text }: Context): CheckResult => {
       "finding",
       `Asserts guaranteed or existing approval: ${
         claims.map((s) => quote(text.content.slice(s.start, s.end))).join(", ")
-      }. ClearPath policy (fictional) requires human review of substantiation for such claims; this is not a legal conclusion.${substantiation}`,
+      }. ClearPath policy AC-1 requires human review of substantiation for such claims; this is not a legal conclusion.${substantiation}`,
       {
         excerpt: excerptOf(text.content, claims[0]),
         suggestion:

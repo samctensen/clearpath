@@ -15,7 +15,7 @@ export function useDemoRole() {
 
 export function useChangeDemoRole() {
   const changeRole = useContext(RoleChangeContext);
-  if (!changeRole) throw new Error("Demo role controls require Workspace");
+  if (!changeRole) throw new Error("Role controls require Workspace");
   return changeRole;
 }
 
