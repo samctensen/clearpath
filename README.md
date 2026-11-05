@@ -37,6 +37,18 @@ The scope is **copy review**. Approval does not establish correct visual present
 | [Policy guide](apps/web/src/app/policies/README.md) | Explain what each check covers and where judgment is needed. |
 | [Decision log](apps/web/src/app/decisions/README.md) | Preserve the decision and the exact revision behind it. |
 
+## Repo structure
+
+One TypeScript monorepo keeps the workflow, contracts, and checks together, with two independently deployed apps:
+
+- **`apps/web`** — Next.js / React frontend on Vercel. TanStack Query manages API caching and background refresh; `/api` requests proxy to the backend.
+- **`apps/api`** — Fastify API running on Deno, hosted on Deno Deploy.
+- **`packages/contracts`** — shared types and runtime validation.
+- **`packages/checks`** — deterministic checks, fictional offers, and policy references.
+- **`packages/models`** — database access, migrations, and transactional review workflow. Production uses Neon PostgreSQL; local development uses PGlite.
+
+The visible queue refreshes every 30 seconds. Open cases check for new activity without replacing the revision or unsaved work on screen; saves refresh affected views immediately.
+
 ## Run locally
 
 Use Node.js 24. From a fresh checkout:

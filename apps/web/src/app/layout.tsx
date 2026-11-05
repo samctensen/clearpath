@@ -5,6 +5,7 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "@fontsource/manrope/800.css";
 import { Workspace } from "@/components/workspace";
+import { QueryProvider } from "@/components/query-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <Workspace>{children}</Workspace>
+        <QueryProvider><Workspace>{children}</Workspace></QueryProvider>
       </body>
     </html>
   );

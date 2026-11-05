@@ -9,6 +9,8 @@ import {
 } from "@clearpath/contracts";
 import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkspaceQueries, queryKeys } from "@/lib/query-client";
 import { type SubmissionDraftInput } from "@/lib/submission-draft";
 import { useSubmissionDraft } from "@/lib/use-submission-draft";
 import { DraftConflictRecovery } from "./draft-conflict";
@@ -106,6 +108,16 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
 }) {
   const role = useDemoRole();
   const fieldId = useId();
+  const queryClient = useQueryClient();
+  const save = useMutation({
+    mutationFn: ({ input, expectedRevision }: { input: SubmissionInput; expectedRevision?: number }) => onSave(input, role, expectedRevision),
+    onSuccess: (detail) => {
+      const key = queryKeys.resource(`/cases/${encodeURIComponent(detail.case.id)}`);
+      void queryClient.cancelQueries({ queryKey: key, exact: true });
+      queryClient.setQueryData(key, detail);
+      void invalidateWorkspaceQueries(queryClient);
+    },
+  });
   const [preview, setPreview] = useState<Analysis | null>(null);
   const [hasChecked, setHasChecked] = useState(false);
   const [pending, setPending] = useState<"analyze" | "save" | null>(null);
@@ -167,7 +179,7 @@ export function SubmissionForm({ initial, catalog, revision, casePath, draftScop
         setPreview(await api<Analysis>("/analyze", { body: parsed.data, role }));
         setHasChecked(true);
       } else {
-        const saved = await onSave(parsed.data, role, expectedRevision);
+        const saved = await save.mutateAsync({ input: parsed.data, expectedRevision });
         draft.saved();
         onSaved(saved);
       }

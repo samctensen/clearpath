@@ -114,7 +114,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
   const actionableCount = overview ? overview.counts[role === "reviewer" ? "ready_for_review" : "changes_requested"] + overview.counts.needs_information : 0;
   const scoped = filters.product !== "all" || filters.search.trim() !== "";
   const loading = resource.loading;
-  const failed = !loading && Boolean(resource.error);
+  const failed = !loading && Boolean(resource.error) && resource.rows === null;
   const overviewLoading = !overview && !failed;
   const fixPatternsLoading = role === "submitter" && !fixPatterns && !failed;
   const overviewLayout = usePendingHeight<HTMLDivElement>(overviewLoading);
@@ -172,7 +172,7 @@ function RoleQueue({ role }: { role: DemoRole }) {
       {role === "reviewer" && (overview?.actionable[0] ? <Link href={`/cases/${encodeURIComponent(overview.actionable[0].id)}`} className={styles.primary}>Open next review<Icon name="arrow-right" size={14} /></Link> : overviewLoading && resource.hadReviewAction ? <button type="button" className={styles.primary} disabled>Open next review<Icon name="arrow-right" size={14} /></button> : null)}
     </>} />
 
-    {failed && <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>Couldn’t load submissions</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div>}
+    {resource.error && <div className={styles.error} role="alert"><Icon name="circle-exclamation" size={22} /><div><h2>{failed ? "Couldn’t load submissions" : "Couldn’t refresh submissions"}</h2><p>{resource.error}</p></div><button type="button" onClick={resource.reload} className={styles.secondary}>Try again</button></div>}
       {role === "submitter" ? <FixPatternsChart
         summary={fixPatterns} selectedReason={filters.reason} loading={fixPatternsLoading}
         error={!fixPatterns && failed ? resource.error : null} onSelect={selectReason} onRetry={resource.reload}

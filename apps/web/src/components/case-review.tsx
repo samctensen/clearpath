@@ -5,8 +5,12 @@ import Link from "next/link";
 import { formatLabels, productLabels, type CaseDetail, type CheckResult, type Revision } from "@clearpath/contracts";
 import { api, ApiError, errorMessage, type CatalogData } from "@/lib/api";
 import { useResource } from "@/lib/use-resource";
+import { useCaseResource } from "@/lib/use-case-resource";
+import { useApiMutation } from "@/lib/use-api-mutation";
 import { checkChangeLabels, compareRevisionChecks } from "@/lib/revision-comparison";
 import { AiReviewPanel } from "./ai-review-panel";
+import { CaseRefreshDialog } from "./case-refresh-dialog";
+import { useDraftGuard } from "./draft-guard";
 import { OfferTerms } from "./catalog";
 import { CheckEvidence } from "./check-evidence";
 import { CaseQueueActions } from "./case-queue-actions";
@@ -42,20 +46,29 @@ export function CaseReview({ id, initialRevision = null }: { id: string; initial
   const role = useDemoRole();
   const backLabel = role === "submitter" ? "Submissions" : "Review queue";
   const path = `/cases/${encodeURIComponent(id)}`;
-  const resource = useResource<CaseDetail>(path);
+  const resource = useCaseResource(path);
+  const { requestLeave } = useDraftGuard();
+  const [refreshPrompt, setRefreshPrompt] = useState(false);
+  const [generation, setGeneration] = useState(0);
   const missingRevision = resource.data && initialRevision !== null && !resource.data.revisions.some((revision) => revision.number === initialRevision);
 
   return (
     <div className={styles.casePage}>
+      {refreshPrompt && <CaseRefreshDialog onClose={() => setRefreshPrompt(false)} onRefresh={async () => {
+        const loaded = await resource.reload();
+        if (loaded) setGeneration(value => value + 1);
+        return loaded;
+      }} />}
       {resource.loading ? <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><CaseLoading /></> : missingRevision ? <><PageHeader title="Revision unavailable" back={{ href: "/decisions", label: "Decision log" }} /><ErrorMessage message={`Revision ${initialRevision} is not available for this case.`} /><Link className="button secondary" href={`/cases/${encodeURIComponent(id)}`}>Open current case</Link></> : resource.data ? (
-        <ReviewDesk detail={resource.data} path={path} onChange={resource.replace} onReload={resource.reload} initialRevision={initialRevision} />
+        <ReviewDesk key={`${path}:${generation}`} detail={resource.data} path={path} onChange={resource.replace} onReload={() => requestLeave(() => setRefreshPrompt(true))} onDecisionSaved={() => { void resource.reload(); }} initialRevision={initialRevision} hasUpdate={resource.hasUpdate} refreshError={resource.error} />
       ) : <><PageHeader title="Review submission" back={{ href: "/", label: backLabel }} /><ErrorMessage message={resource.error} retry={resource.reload} /></>}
     </div>
   );
 }
 
-function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { detail: CaseDetail; path: string; onChange: (detail: CaseDetail) => void; onReload: () => void; initialRevision: number | null }) {
+function ReviewDesk({ detail, path, onChange, onReload, onDecisionSaved, initialRevision, hasUpdate, refreshError }: { detail: CaseDetail; path: string; onChange: (detail: CaseDetail) => void; onReload: () => void; onDecisionSaved: () => void; initialRevision: number | null; hasUpdate: boolean; refreshError: string }) {
   const role = useDemoRole();
+  const mutation = useApiMutation<CaseDetail>();
   const [selected, setSelected] = useState<number | null>(initialRevision);
   const [comparing, setComparing] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -109,9 +122,9 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
     setPending(true);
     setActionError(null);
     try {
-      const updated = await api<CaseDetail>(`${path}${suffix}`, {
-        body: { ...body, expectedRevision: current.number },
-        role,
+      const updated = await mutation.mutateAsync({
+        path: `${path}${suffix}`,
+        options: { body: { ...body, expectedRevision: current.number }, role },
       });
       onChange(updated);
       return true;
@@ -157,8 +170,8 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
 
   return (
     <>
-      {approving && <QueueActionDialog caseId={detail.case.id} title={current.input.title} action="approve" role="reviewer" currentRole={role}
-        onClose={() => setApproving(false)} onSuccess={() => { setApproving(false); onReload(); }} />}
+      {approving && <QueueActionDialog caseId={detail.case.id} title={current.input.title} action="approve" role="reviewer" currentRole={role} expectedRevision={current.number}
+        onClose={() => setApproving(false)} onSuccess={() => { setApproving(false); onDecisionSaved(); }} />}
       <PageHeader
         title={revision.input.title}
         description={revision.input.publisher}
@@ -172,6 +185,9 @@ function ReviewDesk({ detail, path, onChange, onReload, initialRevision }: { det
       >
         <div className={styles.headingContext}>{role === "submitter" && detail.case.status === "ready_for_review" ? <span>Awaiting review</span> : <CaseStatusBadge status={detail.case.status} />}<span>Current revision {current.number}</span></div>
       </PageHeader>
+
+      {hasUpdate && <div className="notice" role="status"><DashboardIcon name="circle-info" size={18} /><div><strong>New activity is available</strong><p>Your open revision and unsaved work have been kept in place. Finish or cancel your edits before loading the latest submission.</p><button type="button" className="button secondary small" disabled={editing || pending || approving} onClick={onReload}>Load latest submission</button></div></div>}
+      {refreshError && <ErrorMessage message={`Live updates unavailable. ${refreshError}`} />}
 
       {editing && role === "submitter" && isCurrent && detail.case.status === "needs_information" && <AutomatedMissingInformation revision={current} />}
 

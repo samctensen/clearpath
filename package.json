@@ -9,7 +9,7 @@
     "dev:web": "npm run dev --workspace @clearpath/web",
     "dev:api": "DENO_NO_PACKAGE_JSON=1 deno task dev:api",
     "migrate": "DENO_NO_PACKAGE_JSON=1 deno task migrate",
-    "test": "DENO_NO_PACKAGE_JSON=1 deno task test",
+    "test": "DENO_NO_PACKAGE_JSON=1 deno task test && npm run test --workspace @clearpath/web",
     "check": "DENO_NO_PACKAGE_JSON=1 deno task check && npm run typecheck --workspace @clearpath/web",
     "build": "npm run build --workspace @clearpath/web"
   },
