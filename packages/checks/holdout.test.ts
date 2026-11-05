@@ -2,7 +2,7 @@ import type { Analysis, CheckResult, SubmissionInput } from "../contracts/mod.ts
 import { offers } from "./catalog.ts";
 import { analyze } from "./engine.ts";
 
-// These scenarios were established from build-spec.md, contracts, and the offer
+// These scenarios were established from the original build specification, contracts, and the offer
 // catalog before reading the engine or its tests. Keep them behavior-focused.
 const ruleIds = [
   "review-context", "offer-match", "card-intro-label", "card-promo-terms",

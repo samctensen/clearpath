@@ -1,7 +1,7 @@
-# ClearPath agent handoff
+# Working in ClearPath
 
-Read `docs/handoffs/current-state.md` before starting or resuming work. The running checkout is `/Users/sam/Developer/clearpath/clearpath-frontend` on `main`; historical task worktrees are not the current application.
+Read [README.md](README.md) and the relevant page README for product context. Keep documentation brief and beside the code; do not recreate planning logs or handoff archives.
 
-Check Git state and coordinate file ownership before editing. Sam wants small reviewed changes merged and pushed promptly, not parked in draft PRs. Preserve other agents' in-progress work, and keep the running main checkout synchronized after integration.
+Coordinate file ownership when work is concurrent. Use an isolated worktree when needed, preserve other changes, and stage only files owned by the task. Keep commits small and integrate reviewed work into main. Local `.claude/` preview settings stay untracked.
 
-Use the configured CodeGraph tools for structural code questions. Follow `apps/web/AGENTS.md` for frontend work.
+Use CodeGraph for structural code questions. Follow [apps/web/AGENTS.md](apps/web/AGENTS.md) for frontend changes.

@@ -1,5 +1,5 @@
 // Opt-in live evaluation. Makes one paid request per selected fictional fixture.
-// Run from the repository root; see docs/reviews/2026-11-03-ai-review.md.
+// Run from the repository root with OPENAI_API_KEY set in the environment.
 import { createOpenAiReviewer } from "../apps/api/src/ai-review.ts";
 import { analyze, offers } from "../packages/checks/mod.ts";
 import type { Revision, SubmissionInput } from "../packages/contracts/mod.ts";

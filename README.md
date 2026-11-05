@@ -1,84 +1,59 @@
 # ClearPath
 
-ClearPath is a copy-review workspace for financial marketing teams. Submitters can check a draft before sending it for review. Reviewers see the copy, the applicable offer terms, and evidence for each flagged concern in one place. Change requests, revisions, and decisions stay with the submission.
+A marketing copy-review workspace for a fictional financial services company.
 
-[Open the hosted demo](https://clearpathfinancial.xyz) · [API health](https://clearpathfinancial.xyz/api/health)
+[Open the demo](https://clearpathfinancial.xyz)
 
-The demo uses fictional offers and sample campaigns. The **Reviewer** and **Submitter** controls simulate both roles inside one shared workspace, so a link to a submission opens the same case for whoever follows it. Because the workspace is shared, reviewing copy changes what the next visitor sees; `POST /api/demo/reset` discards the drift and seeds the workspace again. Production authentication is outside the scope of this demo.
+## The problem and our approach
 
-## Two sides of the review loop
+ClearPath's compliance team reviews marketing through Excel and email. Copy, offer terms, feedback, and revisions are scattered, making review a bottleneck as the business grows.
 
-Reviewers use the review map and queue to inspect evidence and decide on an exact revision. Submitters land in **Submissions**, where feedback and missing context lead to the next edit; a recorded revision journey shows what actually happened. Both roles share the fictional demo workspace. Copy approval never means a campaign is live or cleared for publication.
+**Our thesis: help reviewers reach defensible decisions with less reading, reference lookup, and back-and-forth.**
+
+We treat each submission as a review case: the copy, its product context, recorded concerns, and revision history stay together. The demo assumes a central compliance team reviewing text from internal marketers and affiliate partners.
+
+## Two roles, one review loop
+
+**Submitters prepare better inputs and act on feedback.** They can check copy before submitting, see which information or corrections are needed, and open the next edit directly.
+
+**Reviewers spend their time on judgment.** They select work from the review queue, inspect copy alongside offer terms and check evidence, and send specific change requests. When a revision returns, a comparison shows what changed. Approval belongs to the exact revision reviewed.
+
+Every new revision reruns the checks and requires a new decision. The intended gain is less coordination and repeated reading; business time savings have not been measured.
+
+## Where automation helps
+
+Six deterministic checks compare submitted text with fictional offer terms and a bounded policy pack. Results distinguish findings, missing context, passes, and checks that do not apply. Optional AI compliance and marketing opinions are separate, advisory inputs. A human owns the decision.
+
+The scope is **copy review**. Approval does not establish correct visual presentation or clear an asset for publication. The demo uses fictional data and a role switch in a shared workspace; it does not implement production authentication.
+
+## Pages
+
+| Page | Purpose |
+| --- | --- |
+| [Dashboard](apps/web/src/app/README.md) | Find the next review or correction, with a different view for each role. |
+| [New submission](apps/web/src/app/new/README.md) | Gather context and check a draft before review. |
+| [Submission workspace](apps/web/src/app/cases/[id]/README.md) | Review evidence, respond to feedback, compare revisions, and decide. |
+| [Offer library](apps/web/src/app/catalog/README.md) | Give both roles the same offer terms and example copy. |
+| [Policy guide](apps/web/src/app/policies/README.md) | Explain what each check covers and where judgment is needed. |
+| [Decision log](apps/web/src/app/decisions/README.md) | Preserve the decision and the exact revision behind it. |
 
 ## Run locally
 
-Use Node.js 24, the version used in CI. The npm install includes Deno 2.9.6.
+Use Node.js 24. From a fresh checkout:
 
 ```sh
 npm ci
+cp .env.example .env
+cp apps/web/.env.example apps/web/.env.local
 npm run dev
 ```
 
-Open [ClearPath on localhost](http://localhost:3000). The API defaults to port 8000. Local data persists across restarts in the embedded PGlite database at `.data/clearpath`.
+Open [localhost:3000](http://localhost:3000). The Next.js frontend connects to a Deno/Fastify API on port 8000. Local data persists in PGlite at `.data/clearpath`; no external database or AI key is needed.
 
-For configuration overrides, copy `.env.example` to `.env` at the repository root for the API, or copy `apps/web/.env.example` to `apps/web/.env.local` for the web app. Leave `DATABASE_URL` unset to use PGlite.
-
-## Try the review workflow
-
-1. Open **Changes requested** in the review queue and choose **Everyday Credit Card — partner email**. Revision 1 advertises an introductory APR but omits the promotional period and the later rate.
-2. Copy the Everyday Credit Card example from **Offer library**. Return to the submission, switch to **Submitter**, and select **Revise submission**. Replace the marketing copy with the example, **Run checks**, then **Submit new revision**.
-3. Switch to **Reviewer**. Use **Compare with previous** to see the copy and check changes. Select **Approve copy** under **Review decision**. The activity timeline records the decision on revision 2 alongside the earlier request.
-4. To try an unseen edit, switch back to **Submitter** and choose **Edit copy**. Change the intro period from 12 to 18 months and run the checks. Submitting this edit creates a new revision that requires its own review.
-
-Each decision applies to one exact revision. Every new revision reruns the checks and clears prior automated dispositions from the current review. Reviewers must dismiss automated concerns with a reason and resolve open manual concerns before approving copy. Manual concerns stay open across revisions until a reviewer resolves them.
-
-## Optional AI second opinion
-
-Open a submission and select **Generate AI review**. The saved revision receives two separate sections: **Compliance second opinion** for concerns and questions, and **Marketing feedback** for clarity, tone, and suggested wording. Generation sends that revision and its available offer/check context to OpenAI. It runs only on request; the result is saved to that exact revision and reused on later visits.
-
-Reviewers can deliberately **Add as manual concern**. AI never changes the copy, rule results, or approval decision. Suggested language still needs human verification: validated quotations and reference identifiers do not guarantee that an interpretation or rewrite is correct. Historical results stay readable; a new revision needs its own opinion.
-
-Set `OPENAI_API_KEY` in the API's environment to enable generation. Without a key, the normal workflow remains available. The default is `gpt-5.4-mini-2026-03-17` with medium reasoning; `OPENAI_MODEL` can override it. The demo allows 50 generation attempts globally per UTC day (`AI_REVIEW_DAILY_LIMIT`) and 10 per workspace. Failures count toward these limits; reading saved results does not. See the [AI evaluation and limitations](docs/reviews/2026-11-03-ai-review.md).
-
-## What the checks cover
-
-The six deterministic checks evaluate submitted text against the selected fictional offer and versioned review rules.
-
-| Check | What it looks for |
-| --- | --- |
-| Review context | The offer, product, launch date, format, and completeness needed to evaluate the copy |
-| Offer match | Explicit APRs and card promotional durations that differ from the selected offer |
-| Introductory label | Introductory card rates that lack a nearby introductory label |
-| Card promotional terms | The promotional period and later APR when applicable, with a specific exception for banners linked to applications |
-| Loan repayment | Specific personal-loan payment or term claims that call for a human disclosure review |
-| Approval claims | Explicit approval or preapproval claims that call for human substantiation |
-
-Results distinguish passes, findings, unknowns, and checks that do not apply. **Copy approved** records the reviewer's decision on the submitted text. Layout, disclosure prominence, and publication clearance remain separate.
-
-## Architecture
-
-- `apps/web` runs the Next.js 16 App Router. It proxies `/api` requests to the API so the browser uses the same origin.
-- `apps/api` runs Fastify on Deno 2.9.6. It computes analysis when a draft is checked or a revision is submitted and records workflow changes transactionally.
-- `packages/contracts`, `packages/checks`, and `packages/models` hold the shared schemas, rule engine and offer catalog, and PostgreSQL persistence. Local development uses PGlite and the production deployment uses Neon Postgres.
-
-## Verify
+Set `OPENAI_API_KEY` in the root `.env` to enable optional AI reviews. [API setup](apps/api/README.md) covers PostgreSQL and deployment configuration.
 
 ```sh
-npm test        # Rule, persistence, and API tests
-npm run check   # Deno and frontend type checks
-npm run build   # Next.js production build
+npm test        # Unit, persistence, API, and workflow tests
+npm run check   # Backend and frontend type checks
+npm run build   # Production frontend build
 ```
-
-The AI release passed 116 local tests, both type checks, the production frontend build, and hosted workflow/AI smoke tests. Three hosted list samples after adding AI showed median latency of 0.98 seconds for a fresh visitor and 0.31 seconds for a returning visitor, with the same 2,045-byte response. The earlier query optimization reduced these from 10.21 and 1.75 seconds. These small samples are observations, not load-capacity or percentile guarantees. See the [performance measurements and limits](docs/reviews/2026-11-03-list-performance.md).
-
-Run `node scripts/benchmark-list.mjs https://clearpathfinancial.xyz 3` to repeat the list measurement. Each sample creates six fictional records in a new isolated workspace.
-
-Run `node scripts/smoke-ai.mjs https://clearpathfinancial.xyz` to verify generation, cached reuse, unchanged approval behavior, revision history, and isolation. This makes one paid generation request when AI is configured.
-
-## Deploy
-
-The hosted demo runs on Vercel, Deno Deploy, and Neon Postgres at https://clearpathfinancial.xyz. HTTP and the `www` hostname redirect to the canonical HTTPS address. See [deployment notes](docs/deployment.md) for the source bundle and environment settings.
-
-Deploy the API using [Dockerfile.api](Dockerfile.api) with the repository root as the build context. Configure `DATABASE_URL` with a Neon Postgres connection string and run `npm run migrate` against that database before starting the API. Set `NODE_ENV=production`, a random `COOKIE_SECRET` of at least 32 characters, and `WEB_ORIGIN` to the exact allowed HTTPS web origins as a comma-separated list. The API binds to `0.0.0.0` by default in production. Override with `HOST` if needed. It uses the platform's `PORT` when present, then `API_PORT`, then 8000.
-
-For the Vercel project, set the root directory to `apps/web` and allow access to the shared packages outside that directory. Set `API_ORIGIN` to the deployed API origin before building. Verify `/api/health` through the web origin and run the review workflow against the deployed app.
