@@ -70,7 +70,7 @@ export function DashboardUserMenu({ role, onRoleChange }: { role: DemoRole; onRo
             </div>
           </div>
           <div className={styles.userLinks}>
-            <Link href="/new" onClick={() => setOpen(false)}>New submission</Link>
+            {role === "submitter" && <Link href="/new" onClick={() => setOpen(false)}>New submission</Link>}
             <Link href="/catalog" onClick={() => setOpen(false)}>Offer library</Link>
             <Link href="/decisions" onClick={() => setOpen(false)}>Decision log</Link>
           </div>

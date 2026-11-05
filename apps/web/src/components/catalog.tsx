@@ -8,6 +8,7 @@ import { useResource } from "@/lib/use-resource";
 import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { ErrorMessage, buttonClass, cn, formatDate } from "./ui";
 import { PageHeader } from "./ui/page-header";
+import { useDemoRole } from "./workspace";
 import { styles } from "./catalog.styles";
 
 const icons = { card: "credit-card", personal_loan: "landmark", mortgage: "house" };
@@ -36,6 +37,7 @@ export function OfferTerms({ offer, stacked = false }: { offer: Offer; stacked?:
 }
 
 export function Catalog() {
+  const role = useDemoRole();
   const { data, loading, error, reload } = useResource<CatalogData>("/catalog");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const offer = data?.offers.find((item) => item.id === selectedId) ?? data?.offers[0];
@@ -62,7 +64,7 @@ export function Catalog() {
       <PageHeader title="Offer library" description="Fictional offer terms and approved example copy for this demo." actions={data ? <Link href="/policies" className={styles.policy}><DashboardIcon name="shield-check" size={14} />Policy {data.policyVersion}<DashboardIcon name="arrow-right" size={11} /></Link> : undefined} />
       {error && <div className={styles.error}><ErrorMessage message={error} retry={reload} /></div>}
       {loading && !data && <CatalogSkeleton />}
-      {data && data.offers.length === 0 && <div className={styles.empty}><DashboardIcon name="book-open" size={27} /><h2>No offers in the library</h2><p>You can still prepare a submission using unknown offer context.</p><Link href="/new" className={buttonClass({ variant: "secondary" })}>Start a submission<DashboardIcon name="arrow-right" size={14} /></Link></div>}
+      {data && data.offers.length === 0 && <div className={styles.empty}><DashboardIcon name="book-open" size={27} /><h2>No offers in the library</h2><p>{role === "submitter" ? "You can still prepare a submission using unknown offer context." : "Submissions are reviewed against unknown offer context until the library is filled."}</p>{role === "submitter" && <Link href="/new" className={buttonClass({ variant: "secondary" })}>Start a submission<DashboardIcon name="arrow-right" size={14} /></Link>}</div>}
       {data && offer && (
         <div className={styles.layout}>
           <aside className={styles.index}>
@@ -70,7 +72,7 @@ export function Catalog() {
             <nav aria-label="Choose an offer" className={styles.indexNav}>
               {data.offers.map((item) => <a href={`#${encodeURIComponent(item.id)}`} key={item.id} className={styles.indexLink} aria-current={item.id === offer.id ? "true" : undefined}><DashboardIcon name={icons[item.productId]} size={17} /><span><small>{productLabels[item.productId]}</small><strong>{item.name}</strong></span><DashboardIcon name="chevron-right" size={11} /></a>)}
             </nav>
-            <p className={styles.indexNote}>Use these terms to check a claim, or start a submission from an example.</p>
+            <p className={styles.indexNote}>{role === "submitter" ? "Use these terms to check a claim, or start a submission from an example." : "Use these terms to check a claim against the approved example copy."}</p>
           </aside>
           <div className={styles.references}>
               <article key={offer.id} id={offer.id} className={styles.offer} aria-labelledby={`${offer.id}-title`}>
@@ -88,7 +90,7 @@ export function Catalog() {
                     {offer.notes.length > 0 && <div className={styles.notes}><h4>Keep in mind</h4><ul>{offer.notes.map((note) => <li key={note}>{note}</li>)}</ul></div>}
                   </section>
                 </div>
-                <footer className={styles.offerFooter}><p>Adapt the example to your campaign, then submit it for review.</p><Link className={buttonClass({ variant: "secondary" })} href={`/new?example=${encodeURIComponent(offer.id)}`}>Start with this example<DashboardIcon name="arrow-up-right" size={14} /></Link></footer>
+                {role === "submitter" && <footer className={styles.offerFooter}><p>Adapt the example to your campaign, then submit it for review.</p><Link className={buttonClass({ variant: "secondary" })} href={`/new?example=${encodeURIComponent(offer.id)}`}>Start with this example<DashboardIcon name="arrow-up-right" size={14} /></Link></footer>}
               </article>
           </div>
         </div>

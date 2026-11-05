@@ -9,12 +9,14 @@ import { DashboardIcon } from "./dashboard/dashboard-icon";
 import { CustomSelect } from "./ui/custom-select";
 import { HeaderSearch, PageHeader } from "./ui/page-header";
 import { ErrorMessage, buttonClass } from "./ui";
+import { useDemoRole } from "./workspace";
 import { styles } from "./workspace-reference";
 
 const sources = { product_fact: "Product references", regulatory_reference: "Regulatory references", company_policy: "Company policy" };
 const productOptions = [{ value: "all", label: "All products" }, ...Object.entries(productLabels).map(([value, label]) => ({ value, label }))];
 
 export function PolicyGuide() {
+  const role = useDemoRole();
   const { data, loading, error, reload } = useResource<PolicyGuideData>("/policies");
   const [query, setQuery] = useState("");
   const [product, setProduct] = useState("all");
@@ -67,7 +69,7 @@ export function PolicyGuide() {
     <PageHeader title="Policy guide" actions={<>
       <HeaderSearch label="Search the policy guide" placeholder="Search checks or example wording" value={query} onChange={(value) => { clearSelection(); setQuery(value); }} />
       <CustomSelect label="Filter policies by product" value={product} onChange={(value) => { clearSelection(); setProduct(value); }} options={productOptions} />
-      <Link href={draftProduct ? `/new?product=${encodeURIComponent(draftProduct)}` : "/new"} className={buttonClass({ variant: "secondary" })}>New submission</Link>
+      {role === "submitter" && <Link href={draftProduct ? `/new?product=${encodeURIComponent(draftProduct)}` : "/new"} className={buttonClass({ variant: "secondary" })}>New submission</Link>}
     </>} />
     {error && <ErrorMessage message={error} retry={reload} />}
     {loading && !data && <ReferenceLoading label="Loading policy guide" />}

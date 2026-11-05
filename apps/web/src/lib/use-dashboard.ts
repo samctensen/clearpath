@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DemoRole, QueuePage } from "@clearpath/contracts";
 import { errorMessage } from "./api";
@@ -29,7 +29,6 @@ export function useDashboard(
   const client = useQueryClient();
   const search = filters.search.trim();
   const [settledSearch, setSettledSearch] = useState(search);
-  const previousGeometry = useRef({ pagination: false, reviewAction: false });
 
   useEffect(() => {
     if (settledSearch === search) return;
@@ -52,18 +51,10 @@ export function useDashboard(
   const summary = summaryQuery.data;
   const error = enabled && query.error ? errorMessage(query.error) : "";
 
-  useEffect(() => {
-    if (current) previousGeometry.current.pagination = current.page.hasPrev || current.page.hasNext;
-    if (summary) previousGeometry.current.reviewAction = summary.overview.actionable.length > 0;
-  }, [current, summary]);
-
   return {
     rows: current?.rows ?? null,
     page: current?.page ?? emptyPage,
     workspaceTotal: current?.workspaceTotal ?? null,
-    // Preserve layout geometry while a different query loads, without old rows.
-    hadPagination: current ? current.page.hasPrev || current.page.hasNext : previousGeometry.current.pagination,
-    hadReviewAction: summary ? summary.overview.actionable.length > 0 : previousGeometry.current.reviewAction,
     cohort: enabled ? summary?.cohort ?? null : null,
     overview: enabled ? summary?.overview ?? null : null,
     fixPatterns: enabled ? summary?.fixPatterns ?? null : null,
