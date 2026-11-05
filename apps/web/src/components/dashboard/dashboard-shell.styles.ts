@@ -80,13 +80,13 @@ export const styles = {
     "[&>button]:min-h-[34px] [&>button]:px-2.5 [&>button]:py-1 [&>button]:border-0 [&>button]:rounded-lg " +
     "[&>button]:bg-transparent [&>button]:text-muted [&>button]:text-[12.5px] [&>button]:font-semibold " +
     "[&>button]:transition-[color,background-color] [&>button]:duration-150 " +
-    "hover:[&>button]:text-ink " +
+    "[&>button]:hover:text-ink " +
     "[&>button[aria-pressed=true]]:bg-accent-fill [&>button[aria-pressed=true]]:text-white",
 
   userLinks:
     "grid gap-0.5 pt-2.5 border-t border-line " +
     "[&_a]:flex [&_a]:items-center [&_a]:min-h-9 [&_a]:px-2 [&_a]:py-1.5 [&_a]:rounded-lg " +
-    "[&_a]:text-ink [&_a]:text-[13px] [&_a]:font-medium hover:[&_a]:bg-raised",
+    "[&_a]:text-ink [&_a]:text-[13px] [&_a]:font-medium [&_a]:hover:bg-raised",
 
   userNote: "m-0 pt-2.5 border-t border-line text-muted text-[11.5px] leading-[1.5]",
 

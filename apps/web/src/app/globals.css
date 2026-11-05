@@ -159,6 +159,10 @@
     cursor: pointer;
   }
 
+  input[type="search"]::-webkit-search-cancel-button {
+    cursor: pointer;
+  }
+
   button:disabled,
   fieldset:disabled :is(input, select, textarea, button) {
     cursor: not-allowed;
