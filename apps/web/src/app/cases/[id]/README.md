@@ -8,4 +8,4 @@ This is where the review loop happens. Keeping copy, references, evidence, and f
 
 Comparisons highlight copy and context changes. Checks rerun across the whole revision, with earlier judgments available as history.
 
-Optional AI compliance and marketing opinions stay attached to the revision they analyzed. They cannot approve copy. The decision history records what was reviewed and why.
+Open **AI second opinion → Generate AI review** to request separate compliance concerns and marketing feedback from OpenAI. Both roles can inspect quoted evidence, questions, and suggested wording; reviewers can add a useful suggestion as a manual concern. The opinion stays attached to the revision it analyzed. Copy edits and approval remain human actions, recorded in the review history.

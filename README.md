@@ -20,9 +20,18 @@ We treat each submission as a review case: the copy, its product context, record
 
 Every new revision reruns the checks and requires a new decision. The intended gain is less coordination and repeated reading; business time savings have not been measured.
 
-## Where automation helps
+## Checks and OpenAI second opinions
 
-Six deterministic checks compare submitted text with fictional offer terms and a bounded policy pack. Results distinguish findings, missing context, passes, and checks that do not apply. Optional AI compliance and marketing opinions are separate, advisory inputs. A human owns the decision.
+Six deterministic checks cover specific offer and policy conditions. The **OpenAI Responses API** adds an on-demand second opinion on meaning and communication, using the saved copy, matching offer version, check results, and supplied references.
+
+In the submission workspace, both roles can generate two separate views:
+
+- **Compliance:** potential misleading implications, contradictions, unsupported claims, and questions to resolve.
+- **Marketing:** clarity, tone, audience fit, and suggested wording, with instructions to preserve offer facts and disclosures.
+
+Reviewers can turn a useful AI concern into a recorded manual concern and include it in a change request. Opinions are saved against the exact revision with model and prompt-version metadata, then reused on later visits.
+
+Submitted copy is treated as untrusted input. The API validates structured output, verifies quotations against the original copy, and rejects reference IDs outside the supplied context. AI suggestions cannot edit copy, resolve findings, or approve a submission; those remain explicit human actions. This supports the thesis by giving reviewers a focused starting point for judgment and submitters concrete material to improve.
 
 The scope is **copy review**. Approval does not establish correct visual presentation or clear an asset for publication. The demo uses fictional data and a role switch in a shared workspace; it does not implement production authentication.
 
