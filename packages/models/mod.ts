@@ -703,7 +703,7 @@ export class Store {
     const fixPatterns = readFixPatternSummary(result.fix_patterns);
     const submitterAttention = null;
     if (query.role === "submitter") {
-      const guidance = await loadSubmissionRows(this.db.query.bind(this.db), workspace, rows.map((row) => row.id));
+      const guidance = await loadSubmissionRows(this.db.query.bind(this.db), workspace, rows.map((row) => row.id), query.reason);
       rows = rows.map((row) => guidance.get(row.id) ?? row);
     }
     if (result.cohort === null) {

@@ -131,7 +131,7 @@ Deno.test("grouped paging preserves counts and ties with literal search, product
   } finally { await store.close(); }
 });
 
-Deno.test("guidance truncates by Unicode code points and missing sources stay null", async () => {
+Deno.test("guidance marks truncated Unicode text and missing sources stay null", async () => {
   const { dashboardQuerySchema } = await import("@clearpath/contracts");
   const store = await createTestStore();
   try {
@@ -150,7 +150,8 @@ Deno.test("guidance truncates by Unicode code points and missing sources stay nu
     assert.ok(seeded.ok);
     const result = await store.dashboard(seeded.value, dashboardQuerySchema.parse({ role: "submitter" }));
     const feedback = result.rows.find((r) => r.title === "Unicode feedback")!;
-    assert.equal(feedback.guidance?.text, "😀".repeat(240));
+    assert.equal(feedback.guidance?.text, `${"😀".repeat(239)}…`);
+    assert.equal(feedback.guidance?.itemCount, 1);
     assert.equal(Array.from(feedback.guidance!.text).length, 240);
     const unavailable = result.rows.find((r) => r.title === "Unavailable context")!;
     assert.equal(unavailable.status, "needs_information");

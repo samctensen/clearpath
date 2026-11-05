@@ -99,6 +99,118 @@ Deno.test("fix patterns use the latest request on the current revision and refre
   } finally { await f.client.close(); }
 });
 
+Deno.test("selected missing guidance uses the matching current unknown instead of the first check", async () => {
+  const f = await fixture();
+  try {
+    await f.add("multiple-gaps", "needs_information", [
+      { ...check("review-context"), explanation: "Provide the publisher and channel." },
+      { ...check("offer-match", "finding"), explanation: "This finding is not the missing detail." },
+      { ...check("offer-match"), explanation: 42 },
+      { ...check("offer-match"), explanation: "Select the current offer to compare its terms." },
+      { ...check("offer-match"), explanation: "Select the current offer to compare its terms." },
+      { ...check("offer-match"), explanation: "Supply the offer eligibility details." },
+    ], { revision: 2 });
+    await f.client.query("INSERT INTO revisions(id,case_id,number,input,analysis,content_hash) VALUES ('old-gap','multiple-gaps',1,$1::jsonb,$2::jsonb,'old')", [JSON.stringify(input), JSON.stringify(analysis([{ ...check("offer-match"), explanation: "Old revision explanation." }]))]);
+    const general = await f.dashboard();
+    assert.equal(general.rows[0].guidance!.text, "Provide the publisher and channel.");
+    assert.equal(general.rows[0].guidance!.itemCount, 3);
+    const selected = await f.dashboard({ view: "needs_attention", reason: "missing:offer-match" });
+    assert.equal(selected.rows[0].guidance!.text, "Select the current offer to compare its terms.");
+    assert.equal(selected.rows[0].guidance!.kind, "missing_information");
+    assert.equal(selected.rows[0].guidance!.itemCount, 2);
+    assert.equal(selected.rows[0].guidance!.revision, 2);
+    const revision = await f.client.query<{ created_at: Date }>("SELECT created_at FROM revisions WHERE case_id='multiple-gaps' AND number=2");
+    assert.equal(selected.rows[0].guidance!.recordedAt, revision.rows[0].created_at.toISOString());
+    assert.deepEqual(selected.fixPatterns, general.fixPatterns);
+
+    await f.add("unreadable-gap", "needs_information", [
+      { ...check("review-context"), explanation: "Unrelated readable context." },
+      { ...check("offer-match"), explanation: { unavailable: true } },
+    ]);
+    const unreadable = await f.dashboard({ view: "needs_attention", reason: "missing:offer-match" });
+    assert.equal(unreadable.rows.find((row) => row.id === "unreadable-gap")!.guidance, null);
+  } finally { await f.client.close(); }
+});
+
+Deno.test("selected request guidance uses only matching items in the latest current request", async () => {
+  const f = await fixture();
+  try {
+    await f.add("mixed-request", "changes_requested", [
+      { ...check("offer-match", "finding"), explanation: "Current analysis is not the recorded request." },
+    ], { revision: 2 });
+    await f.event("mixed-request", { note: "", items: [{ ...requestItem("offer-match"), nextStep: "Old revision correction." }] }, "Old revision message", 1);
+    await f.event("mixed-request", { note: "", items: [{ ...requestItem("offer-match"), nextStep: "Superseded current correction." }] }, "Earlier current message", 2);
+    await f.event("mixed-request", { note: "Separate reviewer note.", items: [
+      { ...requestItem("approval-claims"), title: "Approval", nextStep: "Remove the guarantee." },
+      { ...requestItem("offer-match"), title: "Offer rate", nextStep: "Use 18% APR.", quote: "12% APR", explanation: "The selected offer records 18%." },
+      { ...requestItem("offer-match"), title: "Offer fee", nextStep: "Add the annual fee." },
+    ] }, "Whole request includes unrelated advice", 2);
+    const selected = await f.dashboard({ view: "needs_attention", reason: "request:offer-match" });
+    const guidance = selected.rows[0].guidance!;
+    assert.equal(guidance.kind, "reviewer_feedback");
+    assert.equal(guidance.revision, 2);
+    assert.match(guidance.text, /Use 18% APR/);
+    assert.match(guidance.text, /12% APR/);
+    assert.match(guidance.text, /selected offer records 18%/);
+    assert.doesNotMatch(guidance.text, /Add the annual fee/);
+    assert.equal(guidance.itemCount, 2);
+    assert.doesNotMatch(guidance.text, /guarantee|Separate reviewer note|Old revision|Superseded|Current analysis|Whole request/);
+    const event = await f.client.query<{ created_at: Date }>("SELECT created_at FROM events WHERE case_id='mixed-request' ORDER BY sequence DESC LIMIT 1");
+    assert.equal(guidance.recordedAt, event.rows[0].created_at.toISOString());
+    const note = await f.dashboard({ view: "needs_attention", reason: "other_feedback" });
+    assert.equal(note.rows[0].guidance!.text, "Separate reviewer note.");
+    assert.equal(note.rows[0].guidance!.itemCount, 1);
+    assert.equal((await f.dashboard()).rows.find(row => row.id === "mixed-request")!.guidance!.itemCount, 4);
+
+    await f.add("stale-source", "changes_requested", [], { revision: 2 });
+    await f.event("stale-source", { note: "Stale note", items: [requestItem("offer-match")] }, "Stale audit message", 1);
+    const unavailable = await f.dashboard({ view: "needs_attention", reason: "details_unavailable" });
+    assert.equal(unavailable.rows.find((row) => row.id === "stale-source")!.guidance, null);
+  } finally { await f.client.close(); }
+});
+
+Deno.test("other feedback retains actual notes manual concerns and legacy text without unrelated typed requests", async () => {
+  const f = await fixture();
+  try {
+    await f.add("mixed-other", "changes_requested");
+    await f.event("mixed-other", { note: "Explain the lender relationship.", items: [
+      { ...requestItem("offer-match"), title: "Unrelated terms", nextStep: "Use the standard rate." },
+      { ...requestItem("manual-1", "manual"), title: "Lender", nextStep: "Name the lender.", quote: "Our lending partner" },
+      { ...requestItem("unknown-rule"), title: "Unknown check", nextStep: "Keep this recorded correction." },
+    ] });
+    await f.add("legacy-other", "changes_requested");
+    const legacy = "offer-match: this older prose remains exactly as recorded.\nPlease clarify the lender.";
+    await f.event("legacy-other", undefined, legacy);
+    await f.add("malformed-other", "changes_requested");
+    await f.event("malformed-other", { note: "Readable note survives malformed siblings.", items: [
+      null, 7, "not an item", { source: "manual", title: { invalid: true }, nextStep: 42 },
+      { ...requestItem("offer-match"), title: "Unrelated typed item", nextStep: "Do not use this for other feedback." },
+      { source: "manual", title: "Partial manual", nextStep: false, explanation: "Use the recorded explanation.", quote: 12 },
+    ] }, "Whole malformed audit message must not replace selected content.");
+    const selected = await f.dashboard({ view: "needs_attention", reason: "other_feedback" });
+    const mixed = selected.rows.find((row) => row.id === "mixed-other")!.guidance!.text;
+    assert.match(mixed, /Explain the lender relationship/);
+    assert.equal(selected.rows.find((row) => row.id === "mixed-other")!.guidance!.itemCount, 3);
+    assert.doesNotMatch(mixed, /Name the lender|Our lending partner|Keep this recorded correction/);
+    assert.doesNotMatch(mixed, /Unrelated terms|standard rate/);
+    assert.equal(selected.rows.find((row) => row.id === "legacy-other")!.guidance!.text, legacy);
+    const malformed = selected.rows.find((row) => row.id === "malformed-other")!.guidance!.text;
+    assert.match(malformed, /Readable note survives malformed siblings/);
+    assert.equal(selected.rows.find((row) => row.id === "malformed-other")!.guidance!.itemCount, 2);
+    assert.doesNotMatch(malformed, /Use the recorded explanation/);
+    assert.doesNotMatch(malformed, /Unrelated typed|Whole malformed|\[object Object\]|false|42/);
+
+    await f.add("partial-request", "changes_requested");
+    await f.event("partial-request", { note: null, items: [
+      { ...requestItem("offer-match"), title: "Valid item", nextStep: "Keep the matching correction.", quote: { invalid: true } },
+    ] }, "Unrelated generic audit message");
+    const request = await f.dashboard({ view: "needs_attention", reason: "request:offer-match" });
+    assert.equal(request.rows.find((row) => row.id === "partial-request")!.guidance!.text, "Valid item: Keep the matching correction.");
+    const unavailable = await f.dashboard({ view: "needs_attention", reason: "details_unavailable" });
+    assert.equal(unavailable.rows.find((row) => row.id === "partial-request")!.guidance, null);
+  } finally { await f.client.close(); }
+});
+
 Deno.test("inconsistent feedback stays accessible alongside classified portions", async () => {
   const f = await fixture();
   try {

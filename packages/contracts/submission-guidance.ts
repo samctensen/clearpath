@@ -6,6 +6,8 @@ export interface SubmissionGuidance {
   revision: number;
   text: string;
   recordedAt: string;
+  /** Distinct readable recorded sources; a selected reason previews the first in recorded order. */
+  itemCount?: number;
 }
 export interface DashboardRow extends CaseSummary {
   guidance: SubmissionGuidance | null;
